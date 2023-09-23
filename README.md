@@ -8,7 +8,7 @@ Deep learning methods have recently improved the performance and accuracy of pre
 
 This article analyzes the relationship between optical flow and object localization. The proposed algorithm works with moving objects and performs not only instance segmentation but also determines the type of objects and estimates 3D bounding boxes using geometric constraints. Since the method is based only on an algorithmic understanding of three-dimensional data, it does not require data and time for the training process and can be deployed on constrained devices.
 
-## GIF Illustration
+## Illustration
 
 ![GIF Illustration](data/output_movie.gif)
 
