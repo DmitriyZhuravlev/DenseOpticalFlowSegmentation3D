@@ -208,7 +208,7 @@ def get_score(bbox, direction, bev, persp_mat, inv_mat, inv_mat_upper):
     sol = None
 
     for cls in range(3):
-        ps_bev, lower_face, upper_face, rectangle, w_error, h_error, deg = get_bottom_variants(direction, bev, bbox,
+        ps_bev, lower_face, upper_face, rectangle, w_error, h_error, deg = get_bottom_variants(direction, bbox,
                                                                                               persp_mat, inv_mat,
                                                                                               inv_mat_upper[cls], cls)
         if rectangle is not None and max_score < (w_error + h_error) / 2:
