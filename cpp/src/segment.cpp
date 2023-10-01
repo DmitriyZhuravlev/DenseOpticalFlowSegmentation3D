@@ -4,56 +4,25 @@
 #include <cmath>
 #include <random>
 #include <ctime>
+#include "segment.hpp"
+#include "lifting_3d.hpp"
+#include "draw.hpp"
 
 using namespace cv;
 using namespace std;
 
 bool debug = false;
 
-class DisjointSetForest {
-public:
-    vector<int> parent;
-    vector<int> rank;
-    int num_sets;
-
-    DisjointSetForest(int size) : num_sets(size) {
-        parent.resize(size);
-        rank.resize(size, 0);
-        for (int i = 0; i < size; ++i) {
-            parent[i] = i;
-        }
-    }
-
-    int find(int x) {
-        if (x != parent[x]) {
-            parent[x] = find(parent[x]);
-        }
-        return parent[x];
-    }
-
-    void unionSets(int x, int y) {
-        int rootX = find(x);
-        int rootY = find(y);
-        if (rootX != rootY) {
-            if (rank[rootX] > rank[rootY]) {
-                parent[rootY] = rootX;
-            } else if (rank[rootX] < rank[rootY]) {
-                parent[rootX] = rootY;
-            } else {
-                parent[rootY] = rootX;
-                rank[rootX]++;
-            }
-            num_sets--;
-        }
-    }
-};
-
-vector<pair<Point2f, Point2f>> buildGraph(const Mat& smooth, int width, int height, const function<float(const Mat&, int, int, int, int)>& diffFunc, bool is8Connected) {
+vector<pair<Point2f, Point2f>> buildGraph(const Mat &smooth, int width, int height,
+                            const function<float(const Mat &, int, int, int, int)> &diffFunc, bool is8Connected)
+{
     vector<pair<Point2f, Point2f>> graphEdges;
     graphEdges.reserve(is8Connected ? (width - 1) * (height - 1) * 8 : (width - 1) * (height - 1) * 4);
 
-    for (int y = 0; y < height - 1; ++y) {
-        for (int x = 0; x < width - 1; ++x) {
+    for (int y = 0; y < height - 1; ++y)
+    {
+        for (int x = 0; x < width - 1; ++x)
+        {
             Point2f source(static_cast<float>(x), static_cast<float>(y));
             Point2f right(static_cast<float>(x + 1), static_cast<float>(y));
             Point2f down(static_cast<float>(x), static_cast<float>(y + 1));
@@ -63,7 +32,8 @@ vector<pair<Point2f, Point2f>> buildGraph(const Mat& smooth, int width, int heig
             float weight2 = diffFunc(smooth, x, y, x, y + 1);
             graphEdges.emplace_back(source, right);
             graphEdges.emplace_back(source, down);
-            if (is8Connected) {
+            if (is8Connected)
+            {
                 float weight3 = diffFunc(smooth, x, y, x + 1, y + 1);
                 float weight4 = diffFunc(smooth, x + 1, y, x, y + 1);
                 graphEdges.emplace_back(source, rightDown);
@@ -78,63 +48,73 @@ vector<pair<Point2f, Point2f>> buildGraph(const Mat& smooth, int width, int heig
     return graphEdges;
 }
 
-vector<pair<Point2f, Point2f>> segmentGraph(const Mat& smooth, const vector<pair<Point2f, Point2f>>& graphEdges, int size, float k, int minCompSize, float threshold) {
-    DisjointSetForest forest(size);
-    vector<pair<Point2f, Point2f>> sortedGraph = graphEdges;
-    vector<float> thresholdValues(size, 0.0f);
+std::pair<Forest, std::vector<std::tuple<int, int, double>>> segmentGraph(
+    const cv::Mat &flow,
+    const std::vector<std::tuple<int, int, double>> &graphEdges,
+    const cv::Mat &bev,
+    const cv::Matx33f &perspMat,
+    const cv::Matx33f &invMat,
+    const std::vector<cv::Matx33f> &invMatUpper
+)
+{
+    Forest forest(flow, bev, perspMat, invMat, invMatUpper);
 
-    sort(sortedGraph.begin(), sortedGraph.end(), [&](const pair<Point2f, Point2f>& a, const pair<Point2f, Point2f>& b) {
-        float weightA = diff(smooth, static_cast<int>(a.first.x), static_cast<int>(a.first.y), static_cast<int>(a.second.x), static_cast<int>(a.second.y));
-        float weightB = diff(smooth, static_cast<int>(b.first.x), static_cast<int>(b.first.y), static_cast<int>(b.second.x), static_cast<int>(b.second.y));
-        return weightA < weightB;
+    auto weight = [](const std::tuple<int, int, double> &edge) -> double
+    {
+        return std::get<2>(edge);
+    };
+
+    std::vector<std::tuple<int, int, double>> sortedGraph = graphEdges;
+    std::sort(sortedGraph.begin(), sortedGraph.end(), [weight](const auto & edge1, const auto & edge2)
+    {
+        return weight(edge1) < weight(edge2);
     });
 
-    for (size_t i = 0; i < sortedGraph.size(); ++i) {
-        const pair<Point2f, Point2f>& edge = sortedGraph[i];
-        int node1 = static_cast<int>(edge.first.y) * smooth.cols + static_cast<int>(edge.first.x);
-        int node2 = static_cast<int>(edge.second.y) * smooth.cols + static_cast<int>(edge.second.x);
-        int root1 = forest.find(node1);
-        int root2 = forest.find(node2);
+    for (const auto &edge : sortedGraph)
+    {
+        int a = forest.find(std::get<0>(edge));
+        int b = forest.find(std::get<1>(edge));
 
-        if (root1 != root2) {
-            if (diff(smooth, static_cast<int>(edge.first.x), static_cast<int>(edge.first.y), static_cast<int>(edge.second.x), static_cast<int>(edge.second.y)) < thresholdValues[root1] &&
-                diff(smooth, static_cast<int>(edge.first.x), static_cast<int>(edge.first.y), static_cast<int>(edge.second.x), static_cast<int>(edge.second.y)) < thresholdValues[root2]) {
-                forest.unionSets(node1, node2);
-                root1 = forest.find(node1);
-                if (thresholdValues[root2] < k) {
-                    thresholdValues[root1] += thresholdValues[root2];
-                } else {
-                    thresholdValues[root1] += k;
-                }
-                thresholdValues[root2] = root1;
-            }
+        if (a == b)
+        {
+            continue;
         }
+
+        forest.new_merge(a, b);
     }
 
-    return sortedGraph;
+    return std::make_pair(forest, sortedGraph);
 }
 
-float diff(const Mat& img, int x1, int y1, int x2, int y2) {
-    float out = 0.0f;
-    for (int c = 0; c < img.channels(); ++c) {
-        out += static_cast<float>(pow(img.at<Vec3b>(y1, x1)[c] - img.at<Vec3b>(y2, x2)[c], 2));
+double diff(const Mat &img, int x1, int y1, int x2, int y2)
+{
+    double out = 0.0f;
+    for (int c = 0; c < img.channels(); ++c)
+    {
+        out += static_cast<double>(pow(img.at<Vec3b>(y1, x1)[c] - img.at<Vec3b>(y2, x2)[c], 2));
     }
     return out;
 }
 
-float threshold(int size, float constant) {
+float threshold(int size, float constant)
+{
     return constant / static_cast<float>(size);
 }
 
-Mat generateImage(const DisjointSetForest& forest, int width, int height, float threshold, const Mat& inputImage) {
+Mat generateImage(const Forest &forest, int width, int height, float threshold,
+                  const Mat &inputImage)
+{
     vector<Vec3b> colors(width * height);
 
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
             int node = y * width + x;
             int root = forest.find(node);
 
-            if (diff(inputImage, x, y, x, y) > threshold) {
+            if (diff(inputImage, x, y, x, y) > threshold)
+            {
                 colors[root] = inputImage.at<Vec3b>(y, x);
             }
         }
@@ -142,8 +122,10 @@ Mat generateImage(const DisjointSetForest& forest, int width, int height, float 
 
     Mat image(height, width, CV_8UC3);
 
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
             int node = y * width + x;
             int root = forest.find(node);
             image.at<Vec3b>(y, x) = colors[root];
@@ -153,53 +135,156 @@ Mat generateImage(const DisjointSetForest& forest, int width, int height, float 
     return image;
 }
 
-int main() {
-    // Load the consecutive images and convert them to grayscale
-    Mat im1 = imread("/home/dzhura/ComputerVision/3dim-optical-flow/img/frame_1052.png");
-    Mat im2 = imread("/home/dzhura/ComputerVision/3dim-optical-flow/img/frame_1053.png");
-    Mat gray1, gray2;
-    cvtColor(im1, gray1, COLOR_BGR2GRAY);
-    cvtColor(im2, gray2, COLOR_BGR2GRAY);
+//std::tuple<double, Solution> get_score(const std::tuple<int, int, int, int> &bbox,
+//const cv::Vec2f &direction,
+//const std::vector<std::pair<double, double>>, const cv::Mat &persp_mat, const cv::Mat &inv_mat,
+//const std::vector<cv::Mat> &inv_mat_upper)
+//{
+//double max_score = -1.0;
+////Solution(int cls, const std::vector<std::pair<double, double>> &ps_bev, const std::vector<std::pair<double, double>> &lower_face,
+////const std::vector<std::pair<double, double>> &upper_face,
+////const std::vector<std::pair<double, double>> &rectangle, double w_error, double h_error, double orient)
+//Solution sol; //(0, cv::Mat(), cv::Mat(), cv::Mat(), cv::Mat(), 0.0, 0.0, 0.0);
 
-    // Create a mask in HSV Color Space
-    Mat hsv(im1.size(), CV_8UC3);
-    // Set image saturation to maximum
-    hsv.setTo(Scalar(0, 255, 255));
+//for (int cls = 0; cls < 3; ++cls)
+//{
+//std::vector<std::pair<double, double>> ps_bev, lower_face, upper_face, rectangle;
+//double w_error, h_error, deg;
 
-    Mat flow;
-    calcOpticalFlowFarneback(gray1, gray2, flow, 0.5, 3, 15, 3, 5, 1.2, 0);
-    Mat magnitude, angle;
-    cartToPolar(flow[..., 0], flow[..., 1], magnitude, angle);
+//// Call get_bottom_variants function to obtain ps_bev, lower_face, upper_face, rectangle, w_error, h_error, and deg
+//// You will need to provide the appropriate parameters for this function call.
 
-    // Set image hue according to the optical flow direction
-    angle.convertTo(hsv[..., 0], CV_8U, 0.5, 0.5);
-    // Set image value according to the optical flow magnitude (normalized)
-    normalize(magnitude, hsv[..., 2], 0, 255, NORM_MINMAX);
+//if (!rectangle.empty() && max_score < (w_error + h_error) / 2)
+//{
+//max_score = (w_error + h_error) / 2;
+//sol = Solution(cls, ps_bev, lower_face, upper_face, rectangle, w_error, h_error, deg);
+//}
+//}
 
-    // Define arrow length and scale factor for visualization
-    int arrowLength = 10;
-    int arrowScale = 20;
+//return std::make_tuple(max_score, sol);
+//}
 
-    Mat arrowHsv = hsv.clone();
-
-    for (int y = 0; y < flow.rows; y += arrowScale) {
-        for (int x = 0; x < flow.cols; x += arrowScale) {
-            int dx = static_cast<int>(flow.at<Vec2f>(y, x)[0] * arrowLength);
-            int dy = static_cast<int>(flow.at<Vec2f>(y, x)[1] * arrowLength);
-            Point start(x, y);
-            Point end(x + dx, y + dy);
-            arrowedLine(arrowHsv, start, end, Scalar(58, 50, 100), 1, 8, 0, 0.2);
-        }
+Forest get_segmented_array(cv::Mat flow, cv::Mat bev, cv::Matx33f persp_mat, cv::Matx33f inv_mat,
+                           std::vector<cv::Matx33f> inv_mat_upper, int neighbor = 8)
+{
+    // Check for valid neighborhood value (4 or 8)
+    if (neighbor != 4 && neighbor != 8)
+    {
+        // Log a warning if the neighborhood is invalid
+        std::cerr << "Invalid neighborhood chosen. The acceptable values are 4 or 8." << std::endl;
+        std::cerr << "Segmenting with 4-neighborhood..." << std::endl;
     }
 
-    // Convert HSV to RGB (BGR) color representation
-    Mat rgb;
-    cvtColor(arrowHsv, rgb, COLOR_HSV2BGR);
+    // Record the start time
+    double start_time = static_cast<double>(cv::getTickCount());
 
-    // Display the Output
-    imwrite("output/Dense Output.jpg", rgb);
-    imshow("RGB Image", rgb);
-    waitKey(0);
+    int height = flow.rows;
+    int width = flow.cols;
+
+    // Apply Gaussian blur to the flow image
+    cv::GaussianBlur(flow, flow, cv::Size(0, 0), 3.5);
+
+    // Create the graph edges
+    std::vector<Edge> graph_edges = build_graph(flow, width, height, diff, neighbor == 8);
+
+    // Segment the graph using the forest and sorted graph
+    Forest forest(flow, bev, persp_mat, inv_mat, inv_mat_upper);
+    //std::vector<Edge> sorted_graph;
+    auto [merged_forest, sorted_graph] = segment_graph(flow, graph_edges, bev, persp_mat, inv_mat,
+                                         inv_mat_upper);
+
+    // Calculate elapsed time
+    double elapsed_time = (static_cast<double>(cv::getTickCount()) - start_time) /
+                          cv::getTickFrequency();
+
+    // Additional code can be added here to work with the 'forest' object if needed
+
+    return merged_forest;
+}
+
+int main()
+{
+    // Load the consecutive images and convert them to grayscale
+    cv::Mat im1 = cv::imread("/home/dzhura/ComputerVision/3dim-optical-flow/img/frame_1052.png");
+    cv::Mat im2 = cv::imread("/home/dzhura/ComputerVision/3dim-optical-flow/img/frame_1053.png");
+
+    cv::Mat gray1, gray2;
+    cv::cvtColor(im1, gray1, cv::COLOR_BGR2GRAY);
+    cv::cvtColor(im2, gray2, cv::COLOR_BGR2GRAY);
+
+    cv::Mat flow(gray1.size(), CV_32FC2);
+    cv::calcOpticalFlowFarneback(gray1, gray2, flow, 0.5, 3, 15, 3, 5, 1.2, 0);
+
+    // Visualization
+    cv::Mat flow_parts[2];
+    cv::split(flow, flow_parts);
+    cv::Mat magnitude, angle, magn_norm;
+    cv::cartToPolar(flow_parts[0], flow_parts[1], magnitude, angle, true);
+    cv::normalize(magnitude, magn_norm, 0.0f, 1.0f, cv::NORM_MINMAX);
+    angle *= ((1.f / 360.f) * (180.f / 255.f));
+
+    // Build HSV image
+    cv::Mat _hsv[3], hsv, hsv8, bgr;
+    _hsv[0] = angle;
+    _hsv[1] = cv::Mat::ones(angle.size(), CV_32F);
+    _hsv[2] = magn_norm;
+    cv::merge(_hsv, 3, hsv);
+    hsv.convertTo(hsv8, CV_8U, 255.0);
+    cv::cvtColor(hsv8, bgr, cv::COLOR_HSV2BGR);
+
+    //cv::imshow("frame2", bgr);
+    //cv::waitKey(0);
+
+    // Call the get_mat function to obtain persp_mat and inv_mat
+    //cv::Mat persp_mat, inv_mat;
+    auto [persp_mat, inv_mat] =  get_mat();
+
+    std::cout << persp_mat << std::endl;
+
+    // Initialize inv_mat_upper
+    std::vector<cv::Matx33f> inv_mat_upper(3);
+    inv_mat_upper[0] = get_mat_upper(0);
+    inv_mat_upper[1] = get_mat_upper(1);
+    inv_mat_upper[2] = get_mat_upper(2);
+
+    // Read the input image
+    cv::Mat img_empty = cv::imread("/home/dzhura/ComputerVision/3dim-optical-flow/img/background.png");
+
+    // Convert RGB to BGR for OpenCV
+    cv::cvtColor(img_empty, img_empty, cv::COLOR_RGB2BGR);
+
+    //cv::imshow("frame2", img_empty);
+    //cv::waitKey(0);
+
+    // Perform perspective transformation
+    //cv::Mat background_bev;
+    //cv::warpPerspective(img_empty, background_bev, persp_mat, img_empty.size(), cv::INTER_LINEAR,
+                        //cv::BORDER_CONSTANT);
+
+    //// Save the transformed image
+    //cv::imwrite("/home/dzhura/ComputerVision/3dim-optical-flow/img/background_bev.png", background_bev);
+
+    // Perform the transformation on another image or frame (frame variable not provided)
+    // cv::Mat frame; // Assuming you have a frame variable defined
+    cv::Mat bev = transform(im2, persp_mat); // Call your transform function
+    
+    //cv::imshow("frame2", bev);
+    //cv::waitKey(0);
+
+    //cv::Mat bev_out;
+    //cv::addWeighted(bev, 0.5, background_bev, 0.5, 0.5, bev_out);
+
+    // Create a forest object and get segmented array
+    Forest forest = get_segmented_array(flow, bev, persp_mat, inv_mat, inv_mat_upper, 8);
+
+    // Get the best segments from the forest
+    //std::vector<SegmentData> best_segments = forest.GetBestSegments();
+
+    // Call the plot_best_segments_simple function
+    cv::Mat new_segments = plotBestSegmentsSimple(im2, bev, forest, 0.5);
+
+    // Assuming you have a function named `plot_image` to display the new segments
+    draw_image("New Segments", new_segments);
 
     return 0;
 }

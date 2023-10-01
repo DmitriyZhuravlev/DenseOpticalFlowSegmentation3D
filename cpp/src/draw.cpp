@@ -1,92 +1,27 @@
 #include <opencv2/opencv.hpp>
 #include <vector>
 #include <tuple>
+#include "draw.hpp"
+#include "segment.hpp"
 
-void addTextToImage(
-    cv::Mat& image_rgb,
-    const std::string& label,
-    const std::tuple<int, int>& top_left_xy = std::make_tuple(0, 0),
-    double font_scale = 1,
-    int font_thickness = 1,
-    int font_face = cv::FONT_HERSHEY_SIMPLEX,
-    const cv::Scalar& font_color_rgb = cv::Scalar(0, 0, 255),
-    const cv::Scalar& bg_color_rgb = cv::Scalar(0, 0, 0),
-    const cv::Scalar& outline_color_rgb = cv::Scalar(0, 0, 0),
-    double line_spacing = 1.0
-) {
-    const int OUTLINE_FONT_THICKNESS = 3 * font_thickness;
-
-    int im_h = image_rgb.rows;
-    int im_w = image_rgb.cols;
-
-    std::vector<std::string> lines;
-    size_t pos = 0;
-    while ((pos = label.find('\n')) != std::string::npos) {
-        lines.push_back(label.substr(0, pos));
-        label.erase(0, pos + 1);
-    }
-    if (!label.empty()) {
-        lines.push_back(label);
-    }
-
-    for (const std::string& line : lines) {
-        int x, y;
-        std::tie(x, y) = top_left_xy;
-
-        int get_text_size_font_thickness = (outline_color_rgb == cv::Scalar(0, 0, 0)) ? font_thickness : OUTLINE_FONT_THICKNESS;
-
-        cv::Size text_size = cv::getTextSize(line, font_face, font_scale, get_text_size_font_thickness, nullptr);
-        int line_height_no_baseline = text_size.height;
-        int baseline = 0;
-
-        int line_height = line_height_no_baseline + baseline;
-
-        if (!bg_color_rgb.empty() && !line.empty()) {
-            int sz_h = std::min(im_h - y, line_height);
-            int sz_w = std::min(im_w - x, text_size.width);
-
-            if (sz_h > 0 && sz_w > 0) {
-                cv::Mat bg_mask(sz_h, sz_w, CV_8UC3, bg_color_rgb);
-                bg_mask.copyTo(image_rgb(cv::Rect(x, y, sz_w, sz_h)));
-            }
-        }
-
-        if (!outline_color_rgb.empty()) {
-            cv::putText(
-                image_rgb,
-                line,
-                cv::Point(x, y + line_height_no_baseline),
-                font_face,
-                font_scale,
-                outline_color_rgb,
-                OUTLINE_FONT_THICKNESS,
-                cv::LINE_AA
-            );
-        }
-
-        cv::putText(
-            image_rgb,
-            line,
-            cv::Point(x, y + line_height_no_baseline),
-            font_face,
-            font_scale,
-            font_color_rgb,
-            font_thickness,
-            cv::LINE_AA
-        );
-
-        top_left_xy = std::make_tuple(x, y + static_cast<int>(line_height * line_spacing));
-    }
+void draw_image(const std::string &title, const cv::Mat &image)
+{
+    cv::namedWindow(title, cv::WINDOW_NORMAL);
+    cv::imshow(title, image);
+    cv::waitKey(0);  // Wait for a key press or use a specific time delay
+    cv::destroyAllWindows();
 }
 
 cv::Mat drawBottom(
     cv::Mat bev,
-    const std::vector<cv::Point>& rectangle,
-    const std::vector<cv::Point>& ps_bev,
-    const cv::Scalar& color = cv::Scalar(128, 128, 128),
+    const std::vector<cv::Point> &rectangle,
+    const std::vector<cv::Point> &ps_bev,
+    const cv::Scalar &color = cv::Scalar(128, 128, 128),
     int thickness = 35
-) {
-    for (int i = 0; i < 4; ++i) {
+)
+{
+    for (int i = 0; i < 4; ++i)
+    {
         cv::line(bev, ps_bev[i], ps_bev[(i + 1) % 4], color, thickness);
     }
 
@@ -94,27 +29,101 @@ cv::Mat drawBottom(
 }
 
 void drawSegments(
-    cv::Mat& flow,
-    const std::vector<std::vector<cv::Point>>& segments,
-    const cv::Scalar& color = cv::Scalar(0, 0, 0)
-) {
-    for (const std::vector<cv::Point>& s : segments) {
+    cv::Mat &flow,
+    const std::vector<std::vector<cv::Point>> &segments,
+    const cv::Scalar &color = cv::Scalar(0, 0, 0)
+)
+{
+    for (const std::vector<cv::Point> &s : segments)
+    {
         std::vector<std::vector<cv::Point>> contour_vec;
         contour_vec.push_back(s);
         cv::drawContours(flow, contour_vec, -1, color, -1);
     }
 }
 
-void drawAll(
-    cv::Mat& frame_debug,
-    cv::Mat& rgb,
-    const std::vector<cv::Point>& best_lower_face,
-    const std::vector<cv::Point>& best_upper_face,
-    cv::Mat& bev,
-    const std::vector<cv::Point>& best_rectangle,
-    const std::vector<cv::Point>& best_ps_bev,
-    const std::vector<std::vector<cv::Point>>& best_segments,
-    bool final = true
-) {
-    // You can implement the draw_cube and other functions here as needed.
+cv::Mat drawCube(cv::Mat im, const std::vector<cv::Point2f> &lowerFace,
+                 const std::vector<cv::Point2f> &upperFace, cv::Scalar color, int lw)
+{
+    if (lowerFace.empty() || upperFace.empty())
+    {
+        return im;
+    }
+
+    for (int i = 0; i < 4; ++i)
+    {
+        cv::line(im, lowerFace[i], lowerFace[(i + 1) % 4], color, lw);
+        cv::line(im, upperFace[i], upperFace[(i + 1) % 4], color, lw);
+        cv::line(im, lowerFace[i], upperFace[i], color, lw);
+    }
+
+    return im;
+}
+
+cv::Mat plotBestSegmentsSimple(
+    cv::Mat frame,
+    cv::Mat bev,
+    Forest &forest,
+    double minScore
+)
+{
+    static int count = 0;
+    count++;
+
+    int width = frame.cols;
+    int height = frame.rows;
+
+    cv::Mat seg = frame.clone();
+    cv::Mat frameCopy = frame.clone();
+    cv::Mat frameOrig = frame.clone();
+    cv::Mat bevCopy = bev.clone();
+
+    cv::Mat lf = (cv::Mat_<uint16_t>(4, 2) << 215, 265, 90, 121, 294, 120, 625, 265);
+    cv::Mat uf = (cv::Mat_<uint16_t>(4, 2) << 215, 185, 90, 85, 294, 85, 625, 185);
+
+    std::string outputFilePath = "output_frames/frame_" + std::to_string(count) + ".jpg";
+
+    std::vector<SegmentData> bestSegments = forest.GetBestSegments();
+
+    for (const SegmentData &segmentData : bestSegments)
+    {
+        std::vector<int> segment = segmentData.seg;
+        double score = segmentData.score;
+        Solution solution = segmentData.sol;
+        double move = segmentData.move;
+
+        if (score > minScore)
+        {
+            cv::Vec3b color;
+
+            if (solution.cls == 0)
+            {
+                color = cv::Vec3b(0, 255, 255); // Yellow
+            }
+            else if (solution.cls == 1)
+            {
+                color = cv::Vec3b(0, 255, 0); // Green
+            }
+            else if (solution.cls == 2)
+            {
+                color = cv::Vec3b(0, 255, 255); // Mint
+            }
+
+            for (int node_id : segment)
+            {
+                int x = node_id % width;
+                int y = node_id / width;
+                seg.at<cv::Vec3b>(y, x) = color;
+            }
+
+            color = cv::Vec3b(255, 0, 0); // Blue
+            drawCube(frame, solution.lower_face, solution.upper_face, color, 1);
+            drawCube(seg, solution.lower_face, solution.upper_face, color, 1);
+        }
+    }
+
+    double opacity = 2.0 / 5.0;
+    cv::addWeighted(frame, 1.0 - opacity, seg, opacity, 0, frame);
+
+    return frame;
 }
