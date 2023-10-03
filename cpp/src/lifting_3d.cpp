@@ -6,6 +6,7 @@
 #include <iostream>
 #include <cmath>
 #include <limits>
+#include <spdlog/spdlog.h>
 #include "lifting_3d.hpp"
 
 using namespace cv;
@@ -115,14 +116,14 @@ pair<double, vector<cv::Point2f>> get_bottom(vector<cv::Point2f> warp_corners, d
 
     if (k.x == numeric_limits<float>::infinity() || k.y == numeric_limits<float>::infinity())
     {
-        return make_pair(numeric_limits<double>::infinity(), vector<cv::Point2f>());
+        return make_pair(-1.0, vector<cv::Point2f>());
     }
 
     double l = norm(a[3] - k);
 
     if (l == 0)
     {
-        return make_pair(numeric_limits<double>::infinity(), vector<cv::Point2f>());
+        return make_pair(-1.0, vector<cv::Point2f>());
     }
 
     cv::Point2f c0 = ((l - w) * a[0] + w * a[3]) / l;
@@ -133,7 +134,7 @@ pair<double, vector<cv::Point2f>> get_bottom(vector<cv::Point2f> warp_corners, d
 
     if (b.x == numeric_limits<float>::infinity() || b.y < a[0].y)
     {
-        return make_pair(numeric_limits<double>::infinity(), vector<cv::Point2f>());
+        return make_pair(-1.0, vector<cv::Point2f>());
     }
 
     double ew = norm(c - b);
@@ -143,7 +144,7 @@ pair<double, vector<cv::Point2f>> get_bottom(vector<cv::Point2f> warp_corners, d
 
     if (d.x == numeric_limits<float>::infinity())
     {
-        return make_pair(numeric_limits<double>::infinity(), vector<cv::Point2f>());
+        return make_pair(-1, vector<cv::Point2f>());
     }
 
     double el = norm(c - d);
@@ -189,7 +190,7 @@ double get_motion_direction(const cv::Point2f direction, const std::vector<cv::P
     }
     catch (...)
     {
-        cout << "Direction error" << endl;
+        spdlog::warn("Direction error");
         return numeric_limits<double>::infinity();
     }
 }
@@ -231,10 +232,7 @@ vector<cv::Point2f> get_upper_face_simple(vector<cv::Point2i> box_2d,
 std::vector<cv::Point2f> get_upper_face(const std::vector<cv::Point2i> &box_2d,
                                         const std::vector<cv::Point2f> &lower_face)
 {
-    if (debug)
-    {
-        std::cout << "get_upper_face" << std::endl;
-    }
+    spdlog::info("{}", __func__);
 
     std::vector<cv::Point2f> upper_face(4);
 
@@ -269,7 +267,7 @@ std::vector<cv::Point2f> get_upper_face(const std::vector<cv::Point2i> &box_2d,
     {
         if (debug)
         {
-            std::cout << "lines are parallel" << std::endl;
+            spdlog::warn("lines are parallel");
         }
 
         float k1 = cv::norm(lower_face[0] - lower_face[1]) / cv::norm(lower_face[2] - lower_face[3]);
@@ -292,24 +290,18 @@ std::vector<cv::Point2f> get_upper_face(const std::vector<cv::Point2i> &box_2d,
 
 Solution get_bottom_variants(const cv::Point2f &orig_mov_dir,
                              const std::vector<cv::Point2i> &box_2d,
-                             const cv::Mat &mat, const cv::Mat &inv_mat,
-                             const cv::Matx33f &inv_matrix_upper, int cls, bool debug)
+                             const cv::Matx33f &mat, const cv::Matx33f &inv_mat,
+                             const cv::Matx33f &inv_matrix_upper, int cls)
 {
-    if (debug)
-    {
-        std::cout << "orig_mov_dir:" << orig_mov_dir << std::endl;
-    }
+    spdlog::info("{}", __func__);
 
     // Get the motion angle
     double mov_angle = get_motion_direction(orig_mov_dir, box_2d, cls, mat);
 
     if (std::isinf(mov_angle))
     {
-        if (debug)
-        {
-            std::cout << "Moving angle error" << std::endl;
-        }
-        return Solution(cls, {}, {}, {}, {}, 0.0, 0.0, 0.0);
+        spdlog::warn("Moving angle error");
+        return Solution();
     }
 
     // Extract box corner coordinates
@@ -327,16 +319,16 @@ Solution get_bottom_variants(const cv::Point2f &orig_mov_dir,
     std::vector<cv::Point2f> ps_bev = to_warp(ps, mat);
 
     // Get the object dimensions
-    double dim_l, dim_w;
-    std::tie(dim_l, dim_w) = getObjSize(cls);
+    auto [dim_l, dim_w] = getObjSize(cls);
 
     if (std::isnan(dim_l) || std::isnan(dim_w))
     {
         if (debug)
         {
-            std::cout << "Object size error" << std::endl;
+            //std::cout << "Object size error" << std::endl;
+            spdlog::warn("Object size error");
         }
-        return Solution(cls, {}, {}, {}, {}, 0.0, 0.0, 0.0);
+        return Solution();
     }
 
     // Compute the detected angle in degrees
@@ -349,10 +341,8 @@ Solution get_bottom_variants(const cv::Point2f &orig_mov_dir,
 
     if (corners.empty())
     {
-        if (debug)
-        {
-            std::cout << "Corners not found" << std::endl;
-        }
+        spdlog::warn("Corners not found");
+
         return Solution(cls, {}, {}, {}, {}, 0.0, 0.0, 0.0);
     }
 

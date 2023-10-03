@@ -1,6 +1,7 @@
 #include <opencv2/opencv.hpp>
 #include <vector>
 #include <tuple>
+#include <spdlog/spdlog.h>
 #include "draw.hpp"
 #include "segment.hpp"
 
@@ -84,11 +85,13 @@ cv::Mat plotBestSegmentsSimple(
     std::string outputFilePath = "output_frames/frame_" + std::to_string(count) + ".jpg";
 
     std::vector<SegmentData> bestSegments = forest.GetBestSegments();
+    spdlog::info("Segmens Number: {}", bestSegments.size());
 
     for (const SegmentData &segmentData : bestSegments)
     {
         std::vector<int> segment = segmentData.seg;
         double score = segmentData.score;
+        spdlog::info("Segment Score: {}", score);
         Solution solution = segmentData.sol;
         double move = segmentData.move;
 

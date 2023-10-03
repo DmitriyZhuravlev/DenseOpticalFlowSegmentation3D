@@ -4,6 +4,8 @@
 #include <cmath>
 #include <random>
 #include <ctime>
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 #include "segment.hpp"
 #include "lifting_3d.hpp"
 #include "draw.hpp"
@@ -186,13 +188,15 @@ Forest get_segmented_array(cv::Mat flow, cv::Mat bev, cv::Matx33f persp_mat, cv:
 
     // Create the graph edges
     std::vector<Edge> graph_edges = build_graph(flow, width, height, diff, neighbor == 8);
+    spdlog::info("Edges number: {}", graph_edges.size());
 
     // Segment the graph using the forest and sorted graph
-    Forest forest(flow, bev, persp_mat, inv_mat, inv_mat_upper);
+    //Forest forest(flow, bev, persp_mat, inv_mat, inv_mat_upper);
+
     //std::vector<Edge> sorted_graph;
     auto [merged_forest, sorted_graph] = segment_graph(flow, graph_edges, bev, persp_mat, inv_mat,
                                          inv_mat_upper);
-
+    merged_forest.LogInfo();
     // Calculate elapsed time
     double elapsed_time = (static_cast<double>(cv::getTickCount()) - start_time) /
                           cv::getTickFrequency();
@@ -202,8 +206,23 @@ Forest get_segmented_array(cv::Mat flow, cv::Mat bev, cv::Matx33f persp_mat, cv:
     return merged_forest;
 }
 
+void init_logger() {
+    // Create a logger with the name "my_logger" and use the stdout color sink
+    auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+    auto logger = std::make_shared<spdlog::logger>("my_logger", console_sink);
+    
+    // Set the log level (optional)
+    logger->set_level(spdlog::level::error); // You can change the log level as needed
+    
+    // Register the logger globally
+    spdlog::register_logger(logger);
+}
+
 int main()
 {
+
+    init_logger();
+
     // Load the consecutive images and convert them to grayscale
     cv::Mat im1 = cv::imread("/home/dzhura/ComputerVision/3dim-optical-flow/img/frame_1052.png");
     cv::Mat im2 = cv::imread("/home/dzhura/ComputerVision/3dim-optical-flow/img/frame_1053.png");

@@ -1,5 +1,11 @@
+#include <spdlog/spdlog.h>
 #include "graph.hpp"
-//#include "segment.hpp"
+//#include "lifting_3d.hpp"
+
+Solution get_bottom_variants(const cv::Point2f &orig_mov_dir,
+                             const std::vector<cv::Point2i> &box_2d,
+                             const cv::Matx33f &mat, const cv::Matx33f &inv_mat,
+                             const cv::Matx33f &inv_matrix_upper, int cls);
 
 class Solution;
 
@@ -55,8 +61,8 @@ SegmentData::SegmentData(double &score, std::vector<int> seg, Solution &sol, dou
     // Initialize member variables with provided values.
 }
 
-Node::Node(int id, const cv::Vec2f &flow_value) : id(id), parent(id), rank(0), size(1),
-    flow_value(flow_value) {}
+Node::Node(int id, const std::complex<float> &complex_value) : id(id), parent(id), rank(0), size(1),
+    flow_value(complex_value.real(), complex_value.imag()) {}
 
 std::ostream &operator<<(std::ostream &os, const Node &node)
 {
@@ -78,7 +84,7 @@ Forest::Forest(const cv::Mat &flow, const cv::Mat &bev, const cv::Matx33f &persp
 
     for (int i = 0; i < flow.rows * flow.cols; ++i)
     {
-        nodes.emplace_back(i, flow.at<cv::Vec2f>(i / flow.cols, i % flow.cols));
+        nodes.emplace_back(i, flow.at<std::complex<float>>(i / flow.cols, i % flow.cols));
         segments.emplace_back(std::set<int> {i});
     }
 }
@@ -103,7 +109,7 @@ int Forest::find(int n) const
     return current;
 }
 
-void Forest::merge(int a, int b)
+int Forest::merge(int a, int b)
 {
     int parent_a = find(a);
     int parent_b = find(b);
@@ -137,96 +143,139 @@ void Forest::merge(int a, int b)
 
         num_sets -= 1;
     }
+    return parent_b;
+}
+
+void Forest::LogInfo() const
+{
+    spdlog::info("Number of sets: {}", num_sets);
+    spdlog::info("Width: {}", width);
+    spdlog::info("Height: {}", height);
+    spdlog::info("Minimum move: {}", min_move);
+    spdlog::info("Segment history: {}", segment_history.size());
+    // Iterate through the outer vector and print the sizes
+    //for (size_t i = 0; i < segment_history.size(); ++i) {
+    //std::cout << "Segment History " << i << " Size: " << segment_history[i].size() << std::endl;
+    //}
+
+    // Print bev, persp_mat, and inv_mat_upper as needed
+    // For example, to print bev:
+    // spdlog::info("bev:\n{}", bev);
+
+    // Print inv_mat and inv_mat_upper as needed
+
+    // Remember to include spdlog::info for each attribute you want to print
 }
 
 std::tuple<double, Solution> get_score(const std::vector<cv::Point2i> &bbox,
                                        const cv::Vec2f &direction,
-                                       const std::vector<cv::Point2f> bev, const cv::Matx33f &persp_mat, const cv::Matx33f &inv_mat,
+                                       const cv::Mat &bev, const cv::Matx33f &persp_mat, const cv::Matx33f &inv_mat,
                                        const std::vector<cv::Matx33f> &inv_mat_upper)
 {
+    spdlog::info("{} ", __func__);
+
     double max_score = -1.0;
     //Solution(int cls, const std::vector<std::pair<double, double>> &ps_bev, const std::vector<std::pair<double, double>> &lower_face,
     //const std::vector<std::pair<double, double>> &upper_face,
     //const std::vector<std::pair<double, double>> &rectangle, double w_error, double h_error, double orient)
-    Solution sol; //(0, cv::Mat(), cv::Mat(), cv::Mat(), cv::Mat(), 0.0, 0.0, 0.0);
+    Solution best_sol; //(0, cv::Mat(), cv::Mat(), cv::Mat(), cv::Mat(), 0.0, 0.0, 0.0);
+    //return std::make_tuple(max_score, best_sol);
 
     for (int cls = 0; cls < 3; ++cls)
     {
-        std::vector<cv::Point2f> ps_bev, lower_face, upper_face, rectangle;
-        double w_error, h_error, deg;
 
-        // Call get_bottom_variants function to obtain ps_bev, lower_face, upper_face, rectangle, w_error, h_error, and deg
-        // You will need to provide the appropriate parameters for this function call.
+        Solution sol = get_bottom_variants(direction, bbox, persp_mat, inv_mat, inv_mat_upper[cls], cls);
 
-        if (!rectangle.empty() && max_score < (w_error + h_error) / 2)
+        if (!sol.rectangle.empty() && max_score < (sol.w_error + sol.h_error) / 2)
         {
-            max_score = (w_error + h_error) / 2;
-            sol = Solution(cls, ps_bev, lower_face, upper_face, rectangle, w_error, h_error, deg);
+            spdlog::info("Rectangle with score: {} ", (sol.w_error + sol.h_error) / 2);
+            max_score = (sol.w_error + sol.h_error) / 2;
+            best_sol = sol;
+        }
+        else
+        {
+            spdlog::info("Not a rectangle");
         }
     }
 
-    return std::make_tuple(max_score, sol);
+    return std::make_tuple(max_score, best_sol);
 }
 
 void Forest::new_merge(int a, int b, double score_threshold, int min_size, double min_move,
                        double min_convexity)
 {
-    int parent_b = find(b);
+    spdlog::info("{} ", __func__);
+    int parent_b = merge(a, b);
 
-    if (nodes[parent_b].size < min_size)
-    {
-        return;
-    }
+    //if (nodes[parent_b].size < min_size)
+    //{
+    //return;
+    //}
 
     int x = parent_b % width;
     int y = parent_b / width;
-    if (y < height / 10)
-    {
-        return;
-    }
+    //if (y < height / 10)
+    //{
+    //return;
+    //}
 
     double move = cv::norm(nodes[parent_b].flow_value);
 
-    if (move < (y + 1) / static_cast<double>(height))
-    {
-        return;
-    }
+    //if (move < (y + 1) / static_cast<double>(height))
+    //{
+    //return;
+    //}
 
     std::vector<cv::Point2i> bbox = get_bounding_box(parent_b);
     double convexity = nodes[parent_b].size / ((bbox[1].x - bbox[0].x + 1) *
                        (bbox[1].y - bbox[0].y + 1));
 
-    std::tuple<double, Solution> score_solution = get_score(bbox, nodes[parent_b].flow_value, bev,
-            persp_mat, inv_mat, inv_mat_upper);
-    double score = std::get<0>(score_solution);
-    Solution solution = std::get<1>(score_solution);
+    //try
+    {
 
-    segment_scores[parent_b] = score;
+        auto [score, solution] = get_score(bbox, 
+        nodes[parent_b].flow_value, bev,
+                                           persp_mat,
+                                            inv_mat, 
+                                            inv_mat_upper);
 
-    if (solution.cls == 0)
-    {
-        min_convexity = 3.0 / 4.0;
-    }
-    if (solution.cls == 1)
-    {
-        min_convexity = 1.0 / 2.0;
-    }
-    if (solution.cls == 2)
-    {
-        min_convexity = 20.0 / 29.0;
-    }
+        if (score == -1) return;
+        spdlog::info("Solution computed");
 
-    if (convexity < min_convexity)
-    {
-        return;
-    }
+        segment_scores[parent_b] = score;
 
-    if (score > score_threshold)
-    {
-        std::set<int> &seg = segments[parent_b];
-        segment_history[parent_b].emplace_back(score, std::vector<int>(seg.begin(), seg.end()), solution,
-                                               move);
+        if (solution.cls == 0)
+        {
+            min_convexity = 3.0 / 4.0;
+        }
+        if (solution.cls == 1)
+        {
+            min_convexity = 1.0 / 2.0;
+        }
+        if (solution.cls == 2)
+        {
+            min_convexity = 20.0 / 29.0;
+        }
+
+        //if (convexity < min_convexity)
+        //{
+        //return;
+        //}
+
+        if (score > 0) //score_threshold)
+        {
+            std::set<int> &seg = segments[parent_b];
+            segment_history[parent_b].emplace_back(score, std::vector<int>(seg.begin(), seg.end()), solution,
+                                                   move);
+            spdlog::info("Add segment with score: {} ", score);
+        }
     }
+    //catch (const cv::Exception &e)
+    //{
+        //// Handle the OpenCV exception here, e.g., print an error message
+        ////std::cerr << "OpenCV exception: " << e.what() << std::endl;
+        //spdlog::error("OpenCV exception: {} ", e.what());
+    //}
 }
 
 double Forest::get_segment_best_score(int node_id) const
@@ -287,6 +336,7 @@ std::vector<std::set<int>> Forest::get_segments()
 
 std::vector<cv::Point2i> Forest::get_bounding_box(int node_id) const
 {
+    spdlog::info("{} ", __func__);
     const std::set<int> &segment = segments[find(node_id)];
     std::vector<cv::Point2i> bounding_box;
     bounding_box.reserve(segment.size());
@@ -328,6 +378,7 @@ std::pair<Forest, std::vector<Edge>> segment_graph(const cv::Mat &flow,
 {
     // Create a Forest object
     Forest forest(flow, bev, persp_mat, inv_mat, inv_mat_upper);
+    forest.LogInfo();
 
     // Define a lambda function to extract the weight of an edge
     auto weight = [](const Edge & edge) { return edge.weight; };

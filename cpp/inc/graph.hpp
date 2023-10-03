@@ -39,7 +39,7 @@ class Solution
 
         // Default constructor
         Solution()
-            : cls(0), w_error(0.0), h_error(0.0), orient(0.0) {}
+            : w_error(-1.0), h_error(-1.0) {}
 
         Solution(int cls, const std::vector<cv::Point2f> &ps_bev,
                  const std::vector<cv::Point2f> &lower_face,
@@ -69,7 +69,7 @@ class Node
         int size;
         cv::Vec2f flow_value;
 
-        Node(int id, const cv::Vec2f &flow_value);
+        Node(int id, const std::complex<float> &complex_value);
 
         friend std::ostream &operator<<(std::ostream &os, const Node &node);
 };
@@ -93,12 +93,13 @@ class Forest
         int find(int n);
         int find(int n) const;
 
-        void merge(int a, int b);
+        int merge(int a, int b);
 
         void new_merge(int a, int b, double score_threshold = 0.5, int min_size = 1000,
                        double min_move = 1.0, double min_convexity = 1.0 / 2.0);
 
         double get_segment_best_score(int node_id) const;
+        void LogInfo() const;
 
         std::vector<SegmentData> GetBestSegments();
 
@@ -115,9 +116,9 @@ class Forest
         // Include any other private member functions or variables here
 };
 
-std::tuple<double, Solution> get_score(const std::tuple<int, int, int, int> &bbox,
-                                       const cv::Vec2f &direction, const cv::Mat &bev, const cv::Mat &persp_mat, const cv::Mat &inv_mat,
-                                       const std::vector<cv::Mat> &inv_mat_upper);
+//std::tuple<double, Solution> get_score(const std::tuple<int, int, int, int> &bbox,
+                                       //const cv::Vec2f &direction, const cv::Mat &bev, const cv::Mat &persp_mat, const cv::Mat &inv_mat,
+                                       //const std::vector<cv::Mat> &inv_mat_upper);
 
 std::pair<Forest, std::vector<Edge>> segment_graph(const cv::Mat &flow,
                                   const std::vector<Edge> &graph_edges, const cv::Mat &bev, const cv::Matx33f &persp_mat,

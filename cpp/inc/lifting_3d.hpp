@@ -10,9 +10,10 @@
 #include <set>
 #include "graph.hpp"
 
-Solution get_bottom_variants(const cv::Mat &orig_mov_dir, const std::vector<int> &box_2d,
-                             const cv::Mat &mat, const cv::Mat &inv_mat,
-                             const std::vector<cv::Mat> &inv_matrix_upper, int cls, bool debug = false);
+Solution get_bottom_variants(const cv::Point2f &orig_mov_dir,
+                             const std::vector<cv::Point2i> &box_2d,
+                             const cv::Matx33f &mat, const cv::Matx33f &inv_mat,
+                             const cv::Matx33f &inv_matrix_upper, int cls);
 std::pair<cv::Matx33f, cv::Matx33f> get_mat();
 cv::Matx33f get_mat_upper(int cls);
 cv::Mat transform(cv::Mat img, cv::Matx33f mat);

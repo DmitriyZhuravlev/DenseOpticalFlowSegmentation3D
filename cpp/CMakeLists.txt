@@ -26,15 +26,5 @@ file(GLOB SOURCES "src/*.cpp")
 add_executable(DenseOpticalFlowSegmentation3D ${SOURCES})
 
 # Link against OpenCV
-target_link_libraries(DenseOpticalFlowSegmentation3D ${OpenCV_LIBS})
+target_link_libraries(DenseOpticalFlowSegmentation3D ${OpenCV_LIBS} fmt)
 
-# Specify the command for running via Valgrind
-set(VALGRIND_CMD valgrind --leak-check=full --track-origins=yes ./DenseOpticalFlowSegmentation3D)
-
-# Create a custom target for running via Valgrind
-add_custom_target(run_valgrind
-    COMMAND ${VALGRIND_CMD}
-    DEPENDS DenseOpticalFlowSegmentation3D
-    WORKING_DIRECTORY ${CMAKE_PROJECT_DIR}
-    COMMENT "Running via Valgrind..."
-)
