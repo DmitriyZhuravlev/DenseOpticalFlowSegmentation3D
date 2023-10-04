@@ -5,6 +5,10 @@
 #include "draw.hpp"
 #include "segment.hpp"
 
+#include <spdlog/spdlog.h>
+
+extern std::shared_ptr<spdlog::logger> logger;
+
 void draw_image(const std::string &title, const cv::Mat &image)
 {
     cv::namedWindow(title, cv::WINDOW_NORMAL);
@@ -46,6 +50,7 @@ void drawSegments(
 cv::Mat drawCube(cv::Mat im, const std::vector<cv::Point2f> &lowerFace,
                  const std::vector<cv::Point2f> &upperFace, cv::Scalar color, int lw)
 {
+    logger->info("{}", __func__);
     if (lowerFace.empty() || upperFace.empty())
     {
         return im;
@@ -68,6 +73,7 @@ cv::Mat plotBestSegmentsSimple(
     double minScore
 )
 {
+    logger->info("{}", __func__);
     static int count = 0;
     count++;
 
@@ -82,16 +88,16 @@ cv::Mat plotBestSegmentsSimple(
     cv::Mat lf = (cv::Mat_<uint16_t>(4, 2) << 215, 265, 90, 121, 294, 120, 625, 265);
     cv::Mat uf = (cv::Mat_<uint16_t>(4, 2) << 215, 185, 90, 85, 294, 85, 625, 185);
 
-    std::string outputFilePath = "output_frames/frame_" + std::to_string(count) + ".jpg";
+    //std::string outputFilePath = "output_frames/frame_" + std::to_string(count) + ".jpg";
 
     std::vector<SegmentData> bestSegments = forest.GetBestSegments();
-    spdlog::info("Segmens Number: {}", bestSegments.size());
+    logger->info("Segmens Number: {}", bestSegments.size());
 
     for (const SegmentData &segmentData : bestSegments)
     {
         std::vector<int> segment = segmentData.seg;
         double score = segmentData.score;
-        spdlog::info("Segment Score: {}", score);
+        logger->info("Segment Score: {}", score);
         Solution solution = segmentData.sol;
         double move = segmentData.move;
 
@@ -122,6 +128,10 @@ cv::Mat plotBestSegmentsSimple(
             color = cv::Vec3b(255, 0, 0); // Blue
             drawCube(frame, solution.lower_face, solution.upper_face, color, 1);
             drawCube(seg, solution.lower_face, solution.upper_face, color, 1);
+        }
+        else
+        {
+            logger->warn("Low Segment Score: {} < {}", score, minScore);
         }
     }
 

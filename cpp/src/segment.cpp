@@ -15,6 +15,8 @@ using namespace std;
 
 bool debug = false;
 
+std::shared_ptr<spdlog::logger> logger;
+
 vector<pair<Point2f, Point2f>> buildGraph(const Mat &smooth, int width, int height,
                             const function<float(const Mat &, int, int, int, int)> &diffFunc, bool is8Connected)
 {
@@ -188,7 +190,7 @@ Forest get_segmented_array(cv::Mat flow, cv::Mat bev, cv::Matx33f persp_mat, cv:
 
     // Create the graph edges
     std::vector<Edge> graph_edges = build_graph(flow, width, height, diff, neighbor == 8);
-    spdlog::info("Edges number: {}", graph_edges.size());
+    logger->info("Edges number: {}", graph_edges.size());
 
     // Segment the graph using the forest and sorted graph
     //Forest forest(flow, bev, persp_mat, inv_mat, inv_mat_upper);
@@ -206,13 +208,15 @@ Forest get_segmented_array(cv::Mat flow, cv::Mat bev, cv::Matx33f persp_mat, cv:
     return merged_forest;
 }
 
+
+
 void init_logger() {
     // Create a logger with the name "my_logger" and use the stdout color sink
     auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-    auto logger = std::make_shared<spdlog::logger>("my_logger", console_sink);
+    logger = std::make_shared<spdlog::logger>("my_logger", console_sink);
     
     // Set the log level (optional)
-    logger->set_level(spdlog::level::error); // You can change the log level as needed
+    logger->set_level(spdlog::level::info); // You can change the log level as needed
     
     // Register the logger globally
     spdlog::register_logger(logger);

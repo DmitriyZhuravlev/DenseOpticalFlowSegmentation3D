@@ -2,6 +2,10 @@
 #include "graph.hpp"
 //#include "lifting_3d.hpp"
 
+#include <spdlog/spdlog.h>
+
+extern std::shared_ptr<spdlog::logger> logger;
+
 Solution get_bottom_variants(const cv::Point2f &orig_mov_dir,
                              const std::vector<cv::Point2i> &box_2d,
                              const cv::Matx33f &mat, const cv::Matx33f &inv_mat,
@@ -148,11 +152,11 @@ int Forest::merge(int a, int b)
 
 void Forest::LogInfo() const
 {
-    spdlog::info("Number of sets: {}", num_sets);
-    spdlog::info("Width: {}", width);
-    spdlog::info("Height: {}", height);
-    spdlog::info("Minimum move: {}", min_move);
-    spdlog::info("Segment history: {}", segment_history.size());
+    logger->info("Number of sets: {}", num_sets);
+    logger->info("Width: {}", width);
+    logger->info("Height: {}", height);
+    logger->info("Minimum move: {}", min_move);
+    logger->info("Segment history: {}", segment_history.size());
     // Iterate through the outer vector and print the sizes
     //for (size_t i = 0; i < segment_history.size(); ++i) {
     //std::cout << "Segment History " << i << " Size: " << segment_history[i].size() << std::endl;
@@ -160,11 +164,11 @@ void Forest::LogInfo() const
 
     // Print bev, persp_mat, and inv_mat_upper as needed
     // For example, to print bev:
-    // spdlog::info("bev:\n{}", bev);
+    // logger->info("bev:\n{}", bev);
 
     // Print inv_mat and inv_mat_upper as needed
 
-    // Remember to include spdlog::info for each attribute you want to print
+    // Remember to include logger->info for each attribute you want to print
 }
 
 std::tuple<double, Solution> get_score(const std::vector<cv::Point2i> &bbox,
@@ -172,7 +176,7 @@ std::tuple<double, Solution> get_score(const std::vector<cv::Point2i> &bbox,
                                        const cv::Mat &bev, const cv::Matx33f &persp_mat, const cv::Matx33f &inv_mat,
                                        const std::vector<cv::Matx33f> &inv_mat_upper)
 {
-    spdlog::info("{} ", __func__);
+    logger->info("{} ", __func__);
 
     double max_score = -1.0;
     //Solution(int cls, const std::vector<std::pair<double, double>> &ps_bev, const std::vector<std::pair<double, double>> &lower_face,
@@ -188,13 +192,13 @@ std::tuple<double, Solution> get_score(const std::vector<cv::Point2i> &bbox,
 
         if (!sol.rectangle.empty() && max_score < (sol.w_error + sol.h_error) / 2)
         {
-            spdlog::info("Rectangle with score: {} ", (sol.w_error + sol.h_error) / 2);
+            logger->info("Rectangle with score: {} ", (sol.w_error + sol.h_error) / 2);
             max_score = (sol.w_error + sol.h_error) / 2;
             best_sol = sol;
         }
         else
         {
-            spdlog::info("Not a rectangle");
+            logger->info("Not a rectangle");
         }
     }
 
@@ -204,43 +208,54 @@ std::tuple<double, Solution> get_score(const std::vector<cv::Point2i> &bbox,
 void Forest::new_merge(int a, int b, double score_threshold, int min_size, double min_move,
                        double min_convexity)
 {
-    spdlog::info("{} ", __func__);
+    logger->info("{} ", __func__);
     int parent_b = merge(a, b);
 
-    //if (nodes[parent_b].size < min_size)
-    //{
-    //return;
-    //}
+    if (nodes[parent_b].size < min_size)
+    {
+        logger->warn("Low size: {} < {}", nodes[parent_b].size, min_size);
+        return;
+    }
 
     int x = parent_b % width;
     int y = parent_b / width;
-    //if (y < height / 10)
-    //{
-    //return;
-    //}
+    if (y < height / 10)
+    {
+        logger->warn("Low y {} < {}", y, height / 10);
+        return;
+    }
 
     double move = cv::norm(nodes[parent_b].flow_value);
 
-    //if (move < (y + 1) / static_cast<double>(height))
-    //{
-    //return;
-    //}
+    if (move < (y + 1) / static_cast<double>(height))
+    {
+        logger->warn("Low movement {} < {}", move , (y + 1) / static_cast<double>(height));
+        return;
+    }
 
     std::vector<cv::Point2i> bbox = get_bounding_box(parent_b);
     double convexity = nodes[parent_b].size / ((bbox[1].x - bbox[0].x + 1) *
                        (bbox[1].y - bbox[0].y + 1));
+    logger->info("Node size: {}", nodes[parent_b].size);
+    logger->info("Computed convexity: {}", convexity);
+    //TODO add check min convexity threshold
 
-    //try
+    try
     {
 
-        auto [score, solution] = get_score(bbox, 
-        nodes[parent_b].flow_value, bev,
+        auto [score, solution] = get_score(bbox,
+                                           nodes[parent_b].flow_value, bev,
                                            persp_mat,
-                                            inv_mat, 
-                                            inv_mat_upper);
+                                           inv_mat,
+                                           inv_mat_upper);
 
-        if (score == -1) return;
-        spdlog::info("Solution computed");
+        if (score == -1)
+        {
+            logger->warn("Low score");
+            return;
+        };
+
+        logger->info("Solution computed");
 
         segment_scores[parent_b] = score;
 
@@ -256,26 +271,32 @@ void Forest::new_merge(int a, int b, double score_threshold, int min_size, doubl
         {
             min_convexity = 20.0 / 29.0;
         }
+        logger->info("Computed min convexity: {}", min_convexity);
 
-        //if (convexity < min_convexity)
-        //{
-        //return;
-        //}
-
-        if (score > 0) //score_threshold)
+        if (convexity < min_convexity)
         {
-            std::set<int> &seg = segments[parent_b];
+            logger->warn("Low convexity");
+            //return;
+        }
+
+        if (score > score_threshold)
+        {
+            std::set<int> seg = segments[parent_b];
             segment_history[parent_b].emplace_back(score, std::vector<int>(seg.begin(), seg.end()), solution,
                                                    move);
-            spdlog::info("Add segment with score: {} ", score);
+            logger->info("Add segment with score: {} ", score);
+        }
+        else
+        {
+            logger->warn("Low score: {} < {}", score, score_threshold);
         }
     }
-    //catch (const cv::Exception &e)
-    //{
-        //// Handle the OpenCV exception here, e.g., print an error message
-        ////std::cerr << "OpenCV exception: " << e.what() << std::endl;
-        //spdlog::error("OpenCV exception: {} ", e.what());
-    //}
+    catch (const cv::Exception &e)
+    {
+        // Handle the OpenCV exception here, e.g., print an error message
+        //std::cerr << "OpenCV exception: " << e.what() << std::endl;
+        logger->error("OpenCV exception: {} ", e.what());
+    }
 }
 
 double Forest::get_segment_best_score(int node_id) const
@@ -285,6 +306,7 @@ double Forest::get_segment_best_score(int node_id) const
 
 std::vector<SegmentData> Forest::GetBestSegments()
 {
+    logger->info("{}", __func__);
     std::vector<SegmentData> best_segments;
     auto key_function = [](const auto & item1, const auto & item2)
     {
@@ -303,15 +325,18 @@ std::vector<SegmentData> Forest::GetBestSegments()
             return segment1.size() < segment2.size();
         }
     };
+    logger->info("segment history {}", segment_history.size());
     for (size_t segment_id = 0; segment_id < segment_history.size(); ++segment_id)
     {
         const auto &history = segment_history[segment_id];
         if (history.empty())
         {
+            logger->warn("History for segment {} is empty", segment_id);
             continue;
         }
 
         auto segment_data = std::max_element(history.begin(), history.end(), key_function);
+        logger->info("Add best segment for {}", segment_id);
 
         best_segments.push_back(*segment_data);
     }
@@ -336,7 +361,7 @@ std::vector<std::set<int>> Forest::get_segments()
 
 std::vector<cv::Point2i> Forest::get_bounding_box(int node_id) const
 {
-    spdlog::info("{} ", __func__);
+    logger->info("{} ", __func__);
     const std::set<int> &segment = segments[find(node_id)];
     std::vector<cv::Point2i> bounding_box;
     bounding_box.reserve(segment.size());

@@ -95,7 +95,7 @@ class Forest
 
         int merge(int a, int b);
 
-        void new_merge(int a, int b, double score_threshold = 0.5, int min_size = 1000,
+        void new_merge(int a, int b, double score_threshold = 0.3, int min_size = 500,
                        double min_move = 1.0, double min_convexity = 1.0 / 2.0);
 
         double get_segment_best_score(int node_id) const;

@@ -9,6 +9,9 @@
 #include <spdlog/spdlog.h>
 #include "lifting_3d.hpp"
 
+
+extern std::shared_ptr<spdlog::logger> logger;
+
 using namespace cv;
 using namespace std;
 
@@ -190,7 +193,7 @@ double get_motion_direction(const cv::Point2f direction, const std::vector<cv::P
     }
     catch (...)
     {
-        spdlog::warn("Direction error");
+        logger->warn("Direction error");
         return numeric_limits<double>::infinity();
     }
 }
@@ -232,7 +235,7 @@ vector<cv::Point2f> get_upper_face_simple(vector<cv::Point2i> box_2d,
 std::vector<cv::Point2f> get_upper_face(const std::vector<cv::Point2i> &box_2d,
                                         const std::vector<cv::Point2f> &lower_face)
 {
-    spdlog::info("{}", __func__);
+    logger->info("{}", __func__);
 
     std::vector<cv::Point2f> upper_face(4);
 
@@ -267,7 +270,7 @@ std::vector<cv::Point2f> get_upper_face(const std::vector<cv::Point2i> &box_2d,
     {
         if (debug)
         {
-            spdlog::warn("lines are parallel");
+            logger->warn("lines are parallel");
         }
 
         float k1 = cv::norm(lower_face[0] - lower_face[1]) / cv::norm(lower_face[2] - lower_face[3]);
@@ -293,14 +296,14 @@ Solution get_bottom_variants(const cv::Point2f &orig_mov_dir,
                              const cv::Matx33f &mat, const cv::Matx33f &inv_mat,
                              const cv::Matx33f &inv_matrix_upper, int cls)
 {
-    spdlog::info("{}", __func__);
+    logger->info("{}", __func__);
 
     // Get the motion angle
     double mov_angle = get_motion_direction(orig_mov_dir, box_2d, cls, mat);
 
     if (std::isinf(mov_angle))
     {
-        spdlog::warn("Moving angle error");
+        logger->warn("Moving angle error");
         return Solution();
     }
 
@@ -326,7 +329,7 @@ Solution get_bottom_variants(const cv::Point2f &orig_mov_dir,
         if (debug)
         {
             //std::cout << "Object size error" << std::endl;
-            spdlog::warn("Object size error");
+            logger->warn("Object size error");
         }
         return Solution();
     }
@@ -341,7 +344,7 @@ Solution get_bottom_variants(const cv::Point2f &orig_mov_dir,
 
     if (corners.empty())
     {
-        spdlog::warn("Corners not found");
+        logger->warn("Corners not found");
 
         return Solution(cls, {}, {}, {}, {}, 0.0, 0.0, 0.0);
     }
