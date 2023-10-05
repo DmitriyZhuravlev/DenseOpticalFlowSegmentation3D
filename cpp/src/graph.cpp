@@ -59,8 +59,15 @@ std::vector<Edge> build_graph(const cv::Mat &img, int width, int height, const D
 }
 
 // Constructor definition
-SegmentData::SegmentData(double &score, std::vector<int> seg, Solution &sol, double &move)
+SegmentData::SegmentData(double &score, std::set<int> seg, Solution &sol, double &move)
     : score(score), seg(seg), sol(sol), move(move)
+{
+    // Initialize member variables with provided values.
+}
+
+// Constructor definition
+SegmentData::SegmentData()
+    : score(-1.0)
 {
     // Initialize member variables with provided values.
 }
@@ -229,17 +236,17 @@ void Forest::new_merge(int a, int b, double score_threshold, int min_size, doubl
 
     if (move < (y + 1) / static_cast<double>(height))
     {
-        logger->warn("Low movement {} < {}", move , (y + 1) / static_cast<double>(height));
+        logger->warn("Low movement {} < {}", move, (y + 1) / static_cast<double>(height));
         return;
     }
 
     std::vector<cv::Point2i> bbox = get_bounding_box(parent_b);
-    double convexity = nodes[parent_b].size / ((bbox[1].x - bbox[0].x + 1) *
-                       (bbox[1].y - bbox[0].y + 1));
+    double rect_area = ((bbox[1].x - bbox[0].x + 1) * (bbox[1].y - bbox[0].y + 1));
+    logger->info("Rect area: {}", rect_area);
+    double convexity = nodes[parent_b].size / rect_area;
     logger->info("Node size: {}", nodes[parent_b].size);
     logger->info("Computed convexity: {}", convexity);
     //TODO add check min convexity threshold
-
     try
     {
 
@@ -282,8 +289,9 @@ void Forest::new_merge(int a, int b, double score_threshold, int min_size, doubl
         if (score > score_threshold)
         {
             std::set<int> seg = segments[parent_b];
-            segment_history[parent_b].emplace_back(score, std::vector<int>(seg.begin(), seg.end()), solution,
-                                                   move);
+            SegmentData data = segment_history[parent_b];
+            if (data.score < score)
+                segment_history[parent_b] = SegmentData(score, seg, solution, move);
             logger->info("Add segment with score: {} ", score);
         }
         else
@@ -307,41 +315,41 @@ double Forest::get_segment_best_score(int node_id) const
 std::vector<SegmentData> Forest::GetBestSegments()
 {
     logger->info("{}", __func__);
-    std::vector<SegmentData> best_segments;
-    auto key_function = [](const auto & item1, const auto & item2)
-    {
-        double score1 = item1.score;
-        double score2 = item2.score;
-        const auto &segment1 = item1.seg;
-        const auto &segment2 = item2.seg;
+    //std::vector<SegmentData> best_segments;
+    //auto key_function = [](const auto & item1, const auto & item2)
+    //{
+        //double score1 = item1.score;
+        //double score2 = item2.score;
+        //const auto &segment1 = item1.seg;
+        //const auto &segment2 = item2.seg;
 
-        // Compare first by score and then by segment size if scores are equal
-        if (score1 != score2)
-        {
-            return score1 < score2;
-        }
-        else
-        {
-            return segment1.size() < segment2.size();
-        }
-    };
-    logger->info("segment history {}", segment_history.size());
-    for (size_t segment_id = 0; segment_id < segment_history.size(); ++segment_id)
-    {
-        const auto &history = segment_history[segment_id];
-        if (history.empty())
-        {
-            logger->warn("History for segment {} is empty", segment_id);
-            continue;
-        }
+        //// Compare first by score and then by segment size if scores are equal
+        //if (score1 != score2)
+        //{
+            //return score1 < score2;
+        //}
+        //else
+        //{
+            //return segment1.size() < segment2.size();
+        //}
+    //};
+    //logger->info("segment history {}", segment_history.size());
+    //for (size_t segment_id = 0; segment_id < segment_history.size(); ++segment_id)
+    //{
+        //const auto &history = segment_history[segment_id];
+        //if (history.empty())
+        //{
+            //logger->warn("History for segment {} is empty", segment_id);
+            //continue;
+        //}
 
-        auto segment_data = std::max_element(history.begin(), history.end(), key_function);
-        logger->info("Add best segment for {}", segment_id);
+        //auto segment_data = std::max_element(history.begin(), history.end(), key_function);
+        //logger->info("Add best segment for {}", segment_id);
 
-        best_segments.push_back(*segment_data);
-    }
+        //best_segments.push_back(*segment_data);
+    //}
 
-    return best_segments;
+    return segment_history;
 }
 
 std::vector<std::set<int>> Forest::get_segments()
@@ -361,23 +369,21 @@ std::vector<std::set<int>> Forest::get_segments()
 
 std::vector<cv::Point2i> Forest::get_bounding_box(int node_id) const
 {
+    //TODO store segments in (x, y) format
     logger->info("{} ", __func__);
     const std::set<int> &segment = segments[find(node_id)];
     std::vector<cv::Point2i> bounding_box;
     bounding_box.reserve(segment.size());
-
-    for (int node_id : segment)
-    {
-        bounding_box.emplace_back(node_id % width, node_id / width);
-    }
+    logger->info("segment size: {}", segment.size());
 
     int min_x = std::numeric_limits<int>::max();
     int max_x = std::numeric_limits<int>::min();
     int min_y = std::numeric_limits<int>::max();
     int max_y = std::numeric_limits<int>::min();
 
-    for (const cv::Point2i &point : bounding_box)
+    for (int node_id : segment)
     {
+        cv::Point2i point(node_id % width, node_id / width);
         min_x = std::min(min_x, point.x);
         max_x = std::max(max_x, point.x);
         min_y = std::min(min_y, point.y);

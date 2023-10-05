@@ -213,7 +213,7 @@ Forest get_segmented_array(cv::Mat flow, cv::Mat bev, cv::Matx33f persp_mat, cv:
 void init_logger() {
     // Create a logger with the name "my_logger" and use the stdout color sink
     auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-    logger = std::make_shared<spdlog::logger>("my_logger", console_sink);
+    logger = std::make_shared<spdlog::logger>("seg", console_sink);
     
     // Set the log level (optional)
     logger->set_level(spdlog::level::info); // You can change the log level as needed

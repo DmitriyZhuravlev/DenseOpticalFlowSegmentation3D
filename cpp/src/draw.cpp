@@ -95,7 +95,7 @@ cv::Mat plotBestSegmentsSimple(
 
     for (const SegmentData &segmentData : bestSegments)
     {
-        std::vector<int> segment = segmentData.seg;
+        const std::set<int> & segment = segmentData.seg;
         double score = segmentData.score;
         logger->info("Segment Score: {}", score);
         Solution solution = segmentData.sol;

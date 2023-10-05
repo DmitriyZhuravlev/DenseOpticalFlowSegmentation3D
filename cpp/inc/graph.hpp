@@ -53,11 +53,12 @@ class SegmentData
 {
     public:
         double score;              // Type: double
-        std::vector<int> seg;    // Type: std::vector<int>
+        std::set<int> seg;    // Type: std::vector<int>
         Solution sol;            // Type: Solution (Assuming you have defined Solution)
         double move;              // Type: double
 
-        SegmentData(double &score, std::vector<int> seg, Solution &sol, double &move);
+        SegmentData(double &score, std::set<int> seg, Solution &sol, double &move);
+        SegmentData();
 };
 
 class Node
@@ -110,7 +111,7 @@ class Forest
     private:
         std::vector<Node> nodes;
         std::vector<std::set<int>> segments;
-        std::vector<std::vector<SegmentData>> segment_history;
+        std::vector<SegmentData> segment_history;
         std::vector<double> segment_scores;
 
         // Include any other private member functions or variables here
