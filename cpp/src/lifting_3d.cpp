@@ -15,7 +15,7 @@ extern std::shared_ptr<spdlog::logger> logger;
 using namespace cv;
 using namespace std;
 
-const bool debug = false;
+const bool debug = true;
 
 const int DELTA = 600;
 
@@ -113,12 +113,14 @@ double get_angle(cv::Point2f a, cv::Point2f b, cv::Point2f c)
 pair<double, vector<cv::Point2f>> get_bottom(vector<cv::Point2f> warp_corners, double orient,
                                double w, double h)
 {
+    logger->info("[{}:{}]", __func__, __LINE__);
     vector<cv::Point2f> a = to_iv(warp_corners);
     cv::Point2f k = get_intersect(a[3], cv::Point2f(a[3].x + cos(orient), a[3].y + sin(orient)), a[0],
                                   a[1]);
 
     if (k.x == numeric_limits<float>::infinity() || k.y == numeric_limits<float>::infinity())
     {
+        logger->warn("[{}:{}]: lines are parallel", __func__, __LINE__);
         return make_pair(-1.0, vector<cv::Point2f>());
     }
 
@@ -126,17 +128,19 @@ pair<double, vector<cv::Point2f>> get_bottom(vector<cv::Point2f> warp_corners, d
 
     if (l == 0)
     {
+        logger->warn("[{}:{}]: l = 0", __func__, __LINE__);
         return make_pair(-1.0, vector<cv::Point2f>());
     }
 
-    cv::Point2f c0 = ((l - w) * a[0] + w * a[3]) / l;
-    cv::Point2f c1 = ((l - w) * a[0] + w * a[3]) / l;
-    cv::Point2f c(c0.x, c0.y);
+    cv::Point2f c = ((l - w) * a[0] + w * a[3]) / l;
+    //cv::Point2f c1 = ((l - w) * a[0] + w * a[3]) / l;
+    //cv::Point2f c(c0.x, c0.y);
 
     cv::Point2f b = get_intersect(c, cv::Point2f(c.x + cos(orient), c.y + sin(orient)), a[0], a[1]);
 
-    if (b.x == numeric_limits<float>::infinity() || b.y < a[0].y)
+    if (b.x == numeric_limits<float>::infinity()) // || b.y < a[0].y)
     {
+        logger->warn("[{}:{}]: b = infinity", __func__, __LINE__);
         return make_pair(-1.0, vector<cv::Point2f>());
     }
 
@@ -147,14 +151,15 @@ pair<double, vector<cv::Point2f>> get_bottom(vector<cv::Point2f> warp_corners, d
 
     if (d.x == numeric_limits<float>::infinity())
     {
+        logger->warn("[{}:{}]: d = infinity", __func__, __LINE__);
         return make_pair(-1, vector<cv::Point2f>());
     }
 
     double el = norm(c - d);
     double error_l = (el < h) ? el / h : h / el;
 
-    cv::Point2f center((b.x + d.x) / 2, (b.y + d.y) / 2);
-    cv::Point2f f(c.x + (center.x - c.x) * 2, c.y + (center.y - c.y) * 2);
+    cv::Point2f center = (b + d)/2; //((b.x + d.x) / 2, (b.y + d.y) / 2);
+    cv::Point2f f = 2 *center - c; //   (c.x + (center.x - c.x) * 2, c.y + (center.y - c.y) * 2);
 
     vector<cv::Point2f> w_points = to_iv(vector<cv::Point2f> {c, b, f, d});
     double error = error_w * error_l;
@@ -207,6 +212,7 @@ std::pair<int, int> getObjSize(int cls)
 vector<cv::Point2f> get_upper_face_simple(vector<cv::Point2i> box_2d,
         vector<cv::Point2f> lower_face)
 {
+    logger->info("{}", __func__);
     vector<cv::Point2f> upper_face(4, cv::Point2f());
 
     double xmin = box_2d[0].x;
@@ -223,11 +229,11 @@ vector<cv::Point2f> get_upper_face_simple(vector<cv::Point2i> box_2d,
     upper_face[1] = lower_face[1] - cv::Point2f(0, h_min);
     upper_face[2] = lower_face[2] - cv::Point2f(0, h_min);
 
-    if (upper_face[3].y < ymin || upper_face[2].x < xmin || upper_face[1].x > xmax
-        || upper_face[0].y > ymax)
-    {
-        return vector<cv::Point2f>();
-    }
+    //if (upper_face[3].y < ymin || upper_face[2].x < xmin || upper_face[1].x > xmax
+        //|| upper_face[0].y > ymax)
+    //{
+        //return vector<cv::Point2f>();
+    //}
 
     return upper_face;
 }
@@ -236,6 +242,7 @@ std::vector<cv::Point2f> get_upper_face(const std::vector<cv::Point2i> &box_2d,
                                         const std::vector<cv::Point2f> &lower_face)
 {
     logger->info("{}", __func__);
+    return get_upper_face_simple(box_2d, lower_face);
 
     std::vector<cv::Point2f> upper_face(4);
 
@@ -353,7 +360,7 @@ Solution get_bottom_variants(const cv::Point2f &orig_mov_dir,
     std::vector<cv::Point2f> untop_corners = to_warp(corners, inv_mat);
 
     // Calculate height (h) relative to the original box
-    double h = untop_corners[2].y - static_cast<double>(box_2d[1].y);
+    float h = untop_corners[2].y - box_2d[1].y;
 
     // Calculate the upper face
     std::vector<cv::Point2f> upper_face = get_upper_face(box_2d, untop_corners);

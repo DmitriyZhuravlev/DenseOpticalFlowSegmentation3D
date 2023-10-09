@@ -17,4 +17,10 @@ Solution get_bottom_variants(const cv::Point2f &orig_mov_dir,
 std::pair<cv::Matx33f, cv::Matx33f> get_mat();
 cv::Matx33f get_mat_upper(int cls);
 cv::Mat transform(cv::Mat img, cv::Matx33f mat);
+
+std::vector<cv::Point2f> get_upper_face(const std::vector<cv::Point2i> &box_2d,
+                                        const std::vector<cv::Point2f> &lower_face);
+std::vector<cv::Point2f> get_upper_face_simple(std::vector<cv::Point2i> box_2d,
+        std::vector<cv::Point2f> lower_face);
+std::pair<double, double> get_obj_size(int cls);
 #endif
