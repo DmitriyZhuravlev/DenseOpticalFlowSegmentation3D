@@ -90,54 +90,59 @@ std::pair<Forest, std::vector<std::tuple<int, int, double>>> segmentGraph(
     return std::make_pair(forest, sortedGraph);
 }
 
-double diff(const Mat &img, int x1, int y1, int x2, int y2)
+double diff(const Mat &flow, int x1, int y1, int x2, int y2)
 {
-    double out = 0.0f;
-    for (int c = 0; c < img.channels(); ++c)
-    {
-        out += static_cast<double>(pow(img.at<Vec3b>(y1, x1)[c] - img.at<Vec3b>(y2, x2)[c], 2));
-    }
-    return out;
+    cv::Point2f flow1 = flow.at<cv::Point2f>(y1, x1);
+    cv::Point2f flow2 = flow.at<cv::Point2f>(y2, x2);
+
+    // Calculate the difference between the x and y components of the vectors
+    double deltaX = flow1.x - flow2.x;
+    double deltaY = flow1.y - flow2.y;
+
+    // Calculate the Euclidean distance between the vectors
+    double distance = std::sqrt(deltaX * deltaX + deltaY * deltaY);
+
+    return distance;
 }
 
-float threshold(int size, float constant)
-{
-    return constant / static_cast<float>(size);
-}
+//float threshold(int size, float constant)
+//{
+    //return constant / static_cast<float>(size);
+//}
 
-Mat generateImage(const Forest &forest, int width, int height, float threshold,
-                  const Mat &inputImage)
-{
-    vector<Vec3b> colors(width * height);
+//Mat generateImage(const Forest &forest, int width, int height, float threshold,
+                  //const Mat &inputImage)
+//{
+    //vector<Vec3b> colors(width * height);
 
-    for (int y = 0; y < height; ++y)
-    {
-        for (int x = 0; x < width; ++x)
-        {
-            int node = y * width + x;
-            int root = forest.find(node);
+    //for (int y = 0; y < height; ++y)
+    //{
+        //for (int x = 0; x < width; ++x)
+        //{
+            //int node = y * width + x;
+            //int root = forest.find(node);
 
-            if (diff(inputImage, x, y, x, y) > threshold)
-            {
-                colors[root] = inputImage.at<Vec3b>(y, x);
-            }
-        }
-    }
+            //if (diff(inputImage, x, y, x, y) > threshold)
+            //{
+                //colors[root] = inputImage.at<Vec3b>(y, x);
+            //}
+        //}
+    //}
 
-    Mat image(height, width, CV_8UC3);
+    //Mat image(height, width, CV_8UC3);
 
-    for (int y = 0; y < height; ++y)
-    {
-        for (int x = 0; x < width; ++x)
-        {
-            int node = y * width + x;
-            int root = forest.find(node);
-            image.at<Vec3b>(y, x) = colors[root];
-        }
-    }
+    //for (int y = 0; y < height; ++y)
+    //{
+        //for (int x = 0; x < width; ++x)
+        //{
+            //int node = y * width + x;
+            //int root = forest.find(node);
+            //image.at<Vec3b>(y, x) = colors[root];
+        //}
+    //}
 
-    return image;
-}
+    //return image;
+//}
 
 //std::tuple<double, Solution> get_score(const std::tuple<int, int, int, int> &bbox,
 //const cv::Vec2f &direction,
@@ -168,15 +173,17 @@ Mat generateImage(const Forest &forest, int width, int height, float threshold,
 //return std::make_tuple(max_score, sol);
 //}
 
-Forest get_segmented_array(cv::Mat flow, cv::Mat bev, cv::Matx33f persp_mat, cv::Matx33f inv_mat,
-                           std::vector<cv::Matx33f> inv_mat_upper, int neighbor = 8)
+Forest get_segmented_array(const cv::Mat &flow, const cv::Mat &bev, const cv::Matx33f &persp_mat,
+                           const  cv::Matx33f & inv_mat,
+                           const std::vector<cv::Matx33f> &inv_mat_upper, int neighbor = 8)
 {
     // Check for valid neighborhood value (4 or 8)
     if (neighbor != 4 && neighbor != 8)
     {
         // Log a warning if the neighborhood is invalid
-        std::cerr << "Invalid neighborhood chosen. The acceptable values are 4 or 8." << std::endl;
-        std::cerr << "Segmenting with 4-neighborhood..." << std::endl;
+        logger->error("Invalid neighborhood chosen. The acceptable values are 4 or 8.");
+        logger->error("Segmenting with 4-neighborhood...");
+        // TODO add throw
     }
 
     // Record the start time
@@ -186,7 +193,7 @@ Forest get_segmented_array(cv::Mat flow, cv::Mat bev, cv::Matx33f persp_mat, cv:
     int width = flow.cols;
 
     // Apply Gaussian blur to the flow image
-    cv::GaussianBlur(flow, flow, cv::Size(0, 0), 3.5);
+    cv::GaussianBlur(flow, flow, cv::Size(0, 0), 3.0);
 
     // Create the graph edges
     std::vector<Edge> graph_edges = build_graph(flow, width, height, diff, neighbor == 8);
@@ -208,16 +215,15 @@ Forest get_segmented_array(cv::Mat flow, cv::Mat bev, cv::Matx33f persp_mat, cv:
     return merged_forest;
 }
 
-
-
-void init_logger() {
+void init_logger()
+{
     // Create a logger with the name "my_logger" and use the stdout color sink
     auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
     logger = std::make_shared<spdlog::logger>("seg", console_sink);
-    
+
     // Set the log level (optional)
-    logger->set_level(spdlog::level::info); // You can change the log level as needed
-    
+    logger->set_level(spdlog::level::err); //info); //err); // You can change the log level as needed
+
     // Register the logger globally
     spdlog::register_logger(logger);
 }
@@ -276,21 +282,11 @@ int main()
     // Convert RGB to BGR for OpenCV
     cv::cvtColor(img_empty, img_empty, cv::COLOR_RGB2BGR);
 
-    //cv::imshow("frame2", img_empty);
-    //cv::waitKey(0);
-
-    // Perform perspective transformation
-    //cv::Mat background_bev;
-    //cv::warpPerspective(img_empty, background_bev, persp_mat, img_empty.size(), cv::INTER_LINEAR,
-                        //cv::BORDER_CONSTANT);
-
-    //// Save the transformed image
-    //cv::imwrite("/home/dzhura/ComputerVision/3dim-optical-flow/img/background_bev.png", background_bev);
 
     // Perform the transformation on another image or frame (frame variable not provided)
     // cv::Mat frame; // Assuming you have a frame variable defined
     cv::Mat bev = transform(im2, persp_mat); // Call your transform function
-    
+
     //cv::imshow("frame2", bev);
     //cv::waitKey(0);
 
@@ -304,10 +300,63 @@ int main()
     //std::vector<SegmentData> best_segments = forest.GetBestSegments();
 
     // Call the plot_best_segments_simple function
-    cv::Mat new_segments = plotBestSegmentsSimple(im2, bev, forest, 0.5);
+    cv::Mat new_segments = plotBestSegmentsSimple(im2, bev, forest, 0.7);
 
     // Assuming you have a function named `plot_image` to display the new segments
     draw_image("New Segments", new_segments);
+
+    return 0;
+}
+
+
+int main1() {
+    init_logger();
+
+    // Open the video file for reading
+    cv::VideoCapture video("/path/to/your/video/file.mp4");
+
+    if (!video.isOpened()) {
+        std::cerr << "Error: Could not open video file." << std::endl;
+        return -1;
+    }
+
+    cv::Mat frame, prev_frame;
+    cv::Mat flow;
+
+    while (true) {
+        video >> frame;  // Read the next frame
+
+        if (frame.empty()) {
+            break;  // End of video
+        }
+
+        if (prev_frame.empty()) {
+            prev_frame = frame.clone();
+            continue;
+        }
+
+        cv::Mat gray1, gray2;
+        cv::cvtColor(prev_frame, gray1, cv::COLOR_BGR2GRAY);
+        cv::cvtColor(frame, gray2, cv::COLOR_BGR2GRAY);
+
+        // Compute optical flow between the two frames
+        cv::calcOpticalFlowFarneback(gray1, gray2, flow, 0.5, 3, 15, 3, 5, 1.2, 0);
+
+        // Further processing logic goes here...
+
+        // Display the frame with optical flow
+        cv::imshow("Optical Flow", frame);
+
+        int key = cv::waitKey(30);
+        if (key == 27) {  // Press 'Esc' to exit
+            break;
+        }
+
+        prev_frame = frame.clone();
+    }
+
+    video.release();
+    cv::destroyAllWindows();
 
     return 0;
 }

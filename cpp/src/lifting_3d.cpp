@@ -47,17 +47,66 @@ const int W = 700;
 const int X_OFFSET = 100;
 const int Y_OFFSET = 6000;
 
-cv::Point2f get_intersect(cv::Point2f a1, cv::Point2f a2, cv::Point2f b1, cv::Point2f b2)
-{
-    cv::Matx33f A(a1.x - a2.x, b2.x - b1.x, a1.x - b1.x,
-                  a1.y - a2.y, b2.y - b1.y, a1.y - b1.y,
-                  0, 0, 1);
+//cv::Point2f get_intersect(cv::Point2f a1, cv::Point2f a2, cv::Point2f b1, cv::Point2f b2)
+//{
+    //cv::Matx33f A(a1.x - a2.x, b2.x - b1.x, a1.x - b1.x,
+                  //a1.y - a2.y, b2.y - b1.y, a1.y - b1.y,
+                  //0, 0, 1);
 
-    cv::Vec3f B(b1.x - a2.x, b1.y - a2.y, 0);
+    //cv::Vec3f B(b1.x - a2.x, b1.y - a2.y, 0);
 
-    cv::Vec3f X = A.inv() * B;
+    //cv::Vec3f X = A.inv() * B;
 
-    return cv::Point2f(X[0], X[1]);
+    //return cv::Point2f(X[0], X[1]);
+//}
+
+cv::Point2f get_intersect(cv::Point2f A, cv::Point2f B, cv::Point2f C, cv::Point2f D) {
+
+    // Line AB represented as a1x + b1y = c1
+    float a1 = B.y - A.y;
+    float b1 = A.x - B.x;
+    float c1 = a1*(A.x) + b1*(A.y);
+ 
+    // Line CD represented as a2x + b2y = c2
+    float a2 = D.y - C.y;
+    float b2 = C.x - D.x;
+    float c2 = a2*(C.x)+ b2*(C.y);
+ 
+    float det = a1*b2 - a2*b1;
+ 
+    if (std::abs(det) < 1e-9)
+    {
+        // The lines are parallel. This is simplified
+        // by returning a pair of FLT_MAX
+         return cv::Point2f(std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::quiet_NaN());
+    }
+    else
+    {
+        float x = (b2*c1 - b1*c2)/det;
+        float y = (a1*c2 - a2*c1)/det;
+        return cv::Point2f(x, y);
+    }
+    
+    
+    //float a1x = a2.x - a1.x;
+    //float a1y = a2.y - a1.y;
+    //float b1x = b2.x - b1.x;
+    //float b1y = b2.y - b1.y;
+
+    //float det = a1x * b1y - a1y * b1x;
+
+    //if (std::abs(det) < 1e-9) {
+        //// Lines are parallel, no intersection
+        //return cv::Point2f(std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::quiet_NaN());
+    //} else {
+        //float c1 = a1x * a1.y - a1y * a1.x;
+        //float c2 = b1x * b1.y - b1y * b1.x;
+
+        //float x = (c1 * b1x - c2 * a1x) / det;
+        //float y = (c1 * b1y - c2 * a1y) / det;
+
+        //return cv::Point2f(x, y);
+    //}
 }
 
 cv::Point2f warp_perspective(cv::Point2f p, cv::Matx33f matrix)
@@ -242,7 +291,7 @@ std::vector<cv::Point2f> get_upper_face(const std::vector<cv::Point2i> &box_2d,
                                         const std::vector<cv::Point2f> &lower_face)
 {
     logger->info("{}", __func__);
-    return get_upper_face_simple(box_2d, lower_face);
+    //return get_upper_face_simple(box_2d, lower_face);
 
     std::vector<cv::Point2f> upper_face(4);
 
@@ -342,12 +391,12 @@ Solution get_bottom_variants(const cv::Point2f &orig_mov_dir,
     }
 
     // Compute the detected angle in degrees
-    double detected_angle_deg = mov_angle * (180.0 / M_PI);
+    //double detected_angle_deg = mov_angle * (180.0 / M_PI);
 
     // Calculate the bottom corners and error
     //double error;
     //std::vector<cv::Point2f> corners;
-    auto [error, corners] = get_bottom(ps_bev, detected_angle_deg, dim_l, dim_w);
+    auto [error, corners] = get_bottom(ps_bev, mov_angle, dim_l, dim_w);
 
     if (corners.empty())
     {
@@ -355,6 +404,9 @@ Solution get_bottom_variants(const cv::Point2f &orig_mov_dir,
 
         return Solution(cls, {}, {}, {}, {}, 0.0, 0.0, 0.0);
     }
+    logger->info("corners :");
+    for (size_t i = 0; i < corners.size(); i++)
+        logger->info("{} {}", corners[i].x, corners[i].y);
 
     // Unwarp the bottom corners to the original frame
     std::vector<cv::Point2f> untop_corners = to_warp(corners, inv_mat);
@@ -375,13 +427,15 @@ Solution get_bottom_variants(const cv::Point2f &orig_mov_dir,
 
     // Calculate height error
     cv::Point2f expected_edge = warp_perspective(corners[0], inv_matrix_upper);
-    double expected_h = cv::norm(upper_face[0] - expected_edge);
+    double expected_h = cv::norm(untop_corners[0] - expected_edge);
     double computed_h = cv::norm(upper_face[0] - untop_corners[0]);
 
+    logger->info("expected_edge:  ({}, {})", expected_edge.x, expected_edge.y);
+    logger->info("expected_h:  {}, computed_h:  {}", expected_h, computed_h);
     double h_error = (computed_h < expected_h) ? (computed_h / expected_h) : (expected_h / computed_h);
 
     return Solution(cls, ps_bev, untop_corners, upper_face, corners, w_error, h_error,
-                    detected_angle_deg);
+                    mov_angle);
 }
 
 cv::Matx33f get_mat_upper(int cls)

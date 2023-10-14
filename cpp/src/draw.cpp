@@ -88,7 +88,11 @@ cv::Mat plotBestSegmentsSimple(
     //cv::Mat lf = (cv::Mat_<uint16_t>(4, 2) << 215, 265, 90, 121, 294, 120, 625, 265);
     //cv::Mat uf = (cv::Mat_<uint16_t>(4, 2) << 215, 185, 90, 85, 294, 85, 625, 185);
     //drawCube(frame, solution.lower_face, solution.upper_face, color, 1);
+    
+    //std::vector<cv::Point2f> lf = {{215, 265}, {90, 121}, {294, 120}, {625, 265}};
+    //std::vector<cv::Point2f> uf = {{215, 185}, {90, 85}, {294, 85}, {625, 185}};
 
+    //drawCube(frame, lf, uf, cv::Vec3b(255, 0, 0), 3);
     //std::string outputFilePath = "output_frames/frame_" + std::to_string(count) + ".jpg";
 
     std::vector<SegmentData> bestSegments = forest.GetBestSegments();

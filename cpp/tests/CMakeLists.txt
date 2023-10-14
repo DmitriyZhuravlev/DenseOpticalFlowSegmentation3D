@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.12)
 project(DenseOpticalFlowSegmentation3DTest)
 
+# Add C++11 standard support
+set(CMAKE_CXX_STANDARD 17)
+
 # Find the OpenCV package
 find_package(OpenCV REQUIRED)
 

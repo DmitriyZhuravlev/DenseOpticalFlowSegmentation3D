@@ -23,4 +23,5 @@ std::vector<cv::Point2f> get_upper_face(const std::vector<cv::Point2i> &box_2d,
 std::vector<cv::Point2f> get_upper_face_simple(std::vector<cv::Point2i> box_2d,
         std::vector<cv::Point2f> lower_face);
 std::pair<double, double> get_obj_size(int cls);
+cv::Point2f get_intersect(cv::Point2f a1, cv::Point2f a2, cv::Point2f b1, cv::Point2f b2);
 #endif

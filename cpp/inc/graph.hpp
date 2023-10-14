@@ -57,7 +57,7 @@ class SegmentData
         Solution sol;            // Type: Solution (Assuming you have defined Solution)
         double move;              // Type: double
 
-        SegmentData(double &score, std::set<int> seg, Solution &sol, double &move);
+        SegmentData(const double score, const std::set<int> &seg, const Solution &sol, const double move);
         SegmentData();
 };
 
@@ -113,6 +113,7 @@ class Forest
         std::vector<std::set<int>> segments;
         std::vector<SegmentData> segment_history;
         std::vector<double> segment_scores;
+        std::vector<std::vector<cv::Point2i>> bboxes;
 
         // Include any other private member functions or variables here
 };
