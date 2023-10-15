@@ -1,6 +1,8 @@
 #include <spdlog/spdlog.h>
 #include "graph.hpp"
 //#include "lifting_3d.hpp"
+#include <vector>
+#include <set>
 
 #include <spdlog/spdlog.h>
 
@@ -42,40 +44,52 @@ Edge create_edge(const cv::Mat &flow, int width, int x, int y, int x1, int y1,
     return {vertex_id(x, y), vertex_id(x1, y1), w};
 }
 
-std::vector<Edge> build_graph(const cv::Mat &img, int width, int height, const DiffFunction &diff,
-                              bool neighborhood_8)
-{
-    std::vector<Edge> graph_edges;
-    for (int y = 0; y < height; ++y)
-    {
-        for (int x = 0; x < width; ++x)
-        {
-            if (x > 0)
-            {
-                graph_edges.emplace_back(create_edge(img, width, x, y, x - 1, y, diff));
+std::vector<Edge> build_graph(const cv::Mat& img, int width, int height, const DiffFunction& diff, bool neighborhood_8) {
+
+    logger->info("Start {}", __func__);
+    auto compareEdgesByWeight = [](const Edge& edge1, const Edge& edge2) {
+        return edge1.weight < edge2.weight;
+    };
+
+    std::multiset<Edge, bool (*)(const Edge&, const Edge&)> graph_edges(compareEdgesByWeight);
+
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            if (x > 0) {
+                Edge edge = create_edge(img, width, x, y, x - 1, y, diff);
+                graph_edges.insert(edge);
             }
 
-            if (y > 0)
-            {
-                graph_edges.emplace_back(create_edge(img, width, x, y, x, y - 1, diff));
+            if (y > 0) {
+                Edge edge = create_edge(img, width, x, y, x, y - 1, diff);
+                graph_edges.insert(edge);
             }
 
-            if (neighborhood_8)
-            {
-                if (x > 0 && y > 0)
-                {
-                    graph_edges.emplace_back(create_edge(img, width, x, y, x - 1, y - 1, diff));
+            if (neighborhood_8) {
+                if (x > 0 && y > 0) {
+                    Edge edge = create_edge(img, width, x, y, x - 1, y - 1, diff);
+                    graph_edges.insert(edge);
                 }
 
-                if (x > 0 && y < height - 1)
-                {
-                    graph_edges.emplace_back(create_edge(img, width, x, y, x - 1, y + 1, diff));
+                if (x > 0 && y < height - 1) {
+                    Edge edge = create_edge(img, width, x, y, x - 1, y + 1, diff);
+                    graph_edges.insert(edge);
                 }
             }
         }
     }
-    return graph_edges;
+
+    // Convert the std::multiset to a std::vector
+    //std::vector<Edge> graph_edges_vector(graph_edges.begin(), graph_edges.end());
+    std::vector<Edge> graph_edges_vector;
+    graph_edges_vector.reserve(graph_edges.size()); // Reserve space for efficiency
+
+    std::move(graph_edges.begin(), graph_edges.end(), std::back_inserter(graph_edges_vector));
+
+    logger->info("End {}", __func__);
+    return graph_edges_vector;
 }
+
 
 // Constructor definition
 SegmentData::SegmentData(const double score, const std::set<int> &seg, const Solution &sol, const double move)
@@ -116,7 +130,7 @@ Forest::Forest(const cv::Mat &flow, const cv::Mat &bev, const cv::Matx33f &persp
     for (int i = 0; i < flow.rows * flow.cols; ++i)
     {
         nodes[i] = Node(i, flow.at<std::complex<float>>(i / flow.cols, i % flow.cols));
-        segments[i] = std::set<int> {i};
+        segments.emplace_back(std::set<int> {i});
         bboxes[i] = {{i % width, i / width}, {i % width, i / width}};
     }
 }
@@ -273,6 +287,7 @@ void Forest::new_merge(int a, int b, double score_threshold, int min_size, doubl
         logger->warn("Low movement {} < {}", move, (y + 1) / static_cast<double>(height));
         return;
     }
+    
 
     std::vector<cv::Point2i> bbox = get_bounding_box(parent_b);
     double rect_area = ((bbox[1].x - bbox[0].x + 1) * (bbox[1].y - bbox[0].y + 1));
@@ -436,27 +451,19 @@ std::vector<cv::Point2i> Forest::get_bounding_box(int node_id) const
     //return result;
 }
 
-// Function to sort edges by weight
-bool compareEdgesByWeight(const Edge &edge1, const Edge &edge2)
-{
-    return edge1.weight < edge2.weight;
-}
 
-std::pair<Forest, std::vector<Edge>> segment_graph(const cv::Mat &flow,
-                                  const std::vector<Edge> &graph_edges, const cv::Mat &bev, const cv::Matx33f &persp_mat,
+Forest segment_graph(const cv::Mat &flow,
+                                  const std::vector<Edge> &sorted_graph, const cv::Mat &bev, const cv::Matx33f &persp_mat,
                                   const cv::Matx33f &inv_mat, const std::vector<cv::Matx33f> &inv_mat_upper)
 {
+    logger->info("Start {}", __func__);
+
     // Create a Forest object
     Forest forest(flow, bev, persp_mat, inv_mat, inv_mat_upper);
-    forest.LogInfo();
 
     // Define a lambda function to extract the weight of an edge
     auto weight = [](const Edge & edge) { return edge.weight; };
 
-    //TODO use sorted
-    // Sort the graph edges by weight
-    std::vector<Edge> sorted_graph = graph_edges;
-    std::sort(sorted_graph.begin(), sorted_graph.end(), compareEdgesByWeight);
 
     int total = sorted_graph.size();
     int current = 0;
@@ -476,6 +483,7 @@ std::pair<Forest, std::vector<Edge>> segment_graph(const cv::Mat &flow,
         drawProgressBar(current, total);
     }
 
+    logger->info("End {}", __func__);
     // Return the forest and sorted_graph as a pair
-    return std::make_pair(forest, sorted_graph);
+    return forest;
 }

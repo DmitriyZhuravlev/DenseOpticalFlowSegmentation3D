@@ -122,7 +122,7 @@ class Forest
                                        //const cv::Vec2f &direction, const cv::Mat &bev, const cv::Mat &persp_mat, const cv::Mat &inv_mat,
                                        //const std::vector<cv::Mat> &inv_mat_upper);
 
-std::pair<Forest, std::vector<Edge>> segment_graph(const cv::Mat &flow,
+Forest segment_graph(const cv::Mat &flow,
                                   const std::vector<Edge> &graph_edges, const cv::Mat &bev, const cv::Matx33f &persp_mat,
                                   const cv::Matx33f &inv_mat, const std::vector<cv::Matx33f> &inv_mat_upper);
 
