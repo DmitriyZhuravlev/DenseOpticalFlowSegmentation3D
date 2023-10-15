@@ -17,28 +17,25 @@ bool debug = false;
 
 std::shared_ptr<spdlog::logger> logger;
 
-double diff(const Mat &flow, int x1, int y1, int x2, int y2)
-{
+double diff(const Mat &flow, int x1, int y1, int x2, int y2) {
     cv::Point2f flow1 = flow.at<cv::Point2f>(y1, x1);
     cv::Point2f flow2 = flow.at<cv::Point2f>(y2, x2);
 
     // Calculate the difference between the x and y components of the vectors
-    double deltaX = flow1.x - flow2.x;
-    double deltaY = flow1.y - flow2.y;
+    double delta_x = flow1.x - flow2.x;
+    double delta_y = flow1.y - flow2.y;
 
     // Calculate the Euclidean distance between the vectors
-    double distance = std::sqrt(deltaX * deltaX + deltaY * deltaY);
+    double distance = std::sqrt(delta_x * delta_x + delta_y * delta_y);
 
     return distance;
 }
 
 Forest get_segmented_array(const cv::Mat &flow, const cv::Mat &bev, const cv::Matx33f &persp_mat,
-                           const  cv::Matx33f &inv_mat,
-                           const std::vector<cv::Matx33f> &inv_mat_upper, int neighbor = 8)
-{
+                           const cv::Matx33f &inv_mat,
+                           const std::vector<cv::Matx33f> &inv_mat_upper, int neighbor = 8) {
     // Check for valid neighborhood value (4 or 8)
-    if (neighbor != 4 && neighbor != 8)
-    {
+    if (neighbor != 4 && neighbor != 8) {
         // Log a warning if the neighborhood is invalid
         logger->error("Invalid neighborhood chosen. The acceptable values are 4 or 8.");
         logger->error("Segmenting with 4-neighborhood...");
@@ -74,8 +71,7 @@ Forest get_segmented_array(const cv::Mat &flow, const cv::Mat &bev, const cv::Ma
     return merged_forest;
 }
 
-void init_logger()
-{
+void init_logger() {
     // Create a logger with the name "my_logger" and use the stdout color sink
     auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
     logger = std::make_shared<spdlog::logger>("seg", console_sink);
@@ -87,9 +83,7 @@ void init_logger()
     spdlog::register_logger(logger);
 }
 
-int main1()
-{
-
+int main() {
     init_logger();
 
     // Load the consecutive images and convert them to grayscale
@@ -158,16 +152,15 @@ int main1()
     //std::vector<SegmentData> best_segments = forest.GetBestSegments();
 
     // Call the plot_best_segments_simple function
-    cv::Mat new_segments = plotBestSegmentsSimple(im2, bev, forest, 0.7);
+    cv::Mat new_segments = plot_best_segments_simple(im2, bev, forest, 0.7);
 
-    // Assuming you have a function named `plot_image` to display the new segments
+    // Assuming you have a function named `draw_image` to display the new segments
     draw_image("New Segments", new_segments);
 
     return 0;
 }
 
-int main()
-{
+int main1() {
     init_logger();
 
     //cv::Mat persp_mat, inv_mat;
@@ -194,8 +187,7 @@ int main()
     // Open the video file for reading
     cv::VideoCapture video("/home/dzhura/ComputerVision/3dim-optical-flow/video/video_3.mp4");
 
-    if (!video.isOpened())
-    {
+    if (!video.isOpened()) {
         std::cerr << "Error: Could not open video file." << std::endl;
         return -1;
     }
@@ -203,17 +195,14 @@ int main()
     cv::Mat frame, prev_frame;
     cv::Mat flow;
 
-    while (true)
-    {
+    while (true) {
         video >> frame;  // Read the next frame
 
-        if (frame.empty())
-        {
+        if (frame.empty()) {
             break;  // End of video
         }
 
-        if (prev_frame.empty())
-        {
+        if (prev_frame.empty()) {
             prev_frame = frame.clone();
             continue;
         }
@@ -245,7 +234,6 @@ int main()
         // Further processing logic goes here...
 
         // Display the frame with optical flow
-       
 
         // Create a forest object and get segmented array
         Forest forest = get_segmented_array(flow, bev, persp_mat, inv_mat, inv_mat_upper, 8);
@@ -254,9 +242,9 @@ int main()
         //std::vector<SegmentData> best_segments = forest.GetBestSegments();
 
         // Call the plot_best_segments_simple function
-        cv::Mat new_segments = plotBestSegmentsSimple(frame, bev, forest, 0.7);
+        cv::Mat new_segments = plot_best_segments_simple(frame, bev, forest, 0.7);
 
-        // Assuming you have a function named `plot_image` to display the new segments
+        // Assuming you have a function named `draw_image` to display the new segments
         cv::imshow("Segmented Optical Flow", new_segments);
         //draw_image("New Segments", new_segments);
 

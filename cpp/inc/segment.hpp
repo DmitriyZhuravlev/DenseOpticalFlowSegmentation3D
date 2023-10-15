@@ -44,21 +44,21 @@ extern bool debug;
 //SegmentData(double &score, std::vector<int> seg, Solution &sol, double &move);
 //};
 
-std::vector<std::pair<cv::Point2f, cv::Point2f>> buildGraph(const cv::Mat &smooth, int width,
-        int height,
-        const std::function<float(const cv::Mat &, int, int, int, int)> &diffFunc,
-        bool is8Connected);
+//std::vector<std::pair<cv::Point2f, cv::Point2f>> buildGraph(const cv::Mat &smooth, int width,
+        //int height,
+        //const std::function<float(const cv::Mat &, int, int, int, int)> &diffFunc,
+        //bool is8Connected);
 
-std::pair<Forest, std::vector<std::tuple<int, int, double>>> segmentGraph(
-    const cv::Mat &flow,
-    const std::vector<std::tuple<int, int, double>> &graphEdges,
-    const cv::Mat &bev,
-    const cv::Mat &perspMat,
-    const cv::Mat &invMat,
-    const std::vector<cv::Mat> &invMatUpper
-);
+//std::pair<Forest, std::vector<std::tuple<int, int, double>>> segmentGraph(
+    //const cv::Mat &flow,
+    //const std::vector<std::tuple<int, int, double>> &graphEdges,
+    //const cv::Mat &bev,
+    //const cv::Mat &perspMat,
+    //const cv::Mat &invMat,
+    //const std::vector<cv::Mat> &invMatUpper
+//);
 
-float threshold(int size, float constant);
+//float threshold(int size, float constant);
 
 //cv::Mat generateImage(const DisjointSetForest& forest, int width, int height, float threshold, const cv::Mat& inputImage);
 

@@ -17,7 +17,7 @@ void draw_image(const std::string &title, const cv::Mat &image)
     cv::destroyAllWindows();
 }
 
-cv::Mat drawBottom(
+cv::Mat draw_bottom(
     cv::Mat bev,
     const std::vector<cv::Point> &rectangle,
     const std::vector<cv::Point> &ps_bev,
@@ -29,11 +29,10 @@ cv::Mat drawBottom(
     {
         cv::line(bev, ps_bev[i], ps_bev[(i + 1) % 4], color, thickness);
     }
-
     return bev;
 }
 
-void drawSegments(
+void draw_segments(
     cv::Mat &flow,
     const std::vector<std::vector<cv::Point>> &segments,
     const cv::Scalar &color = cv::Scalar(0, 0, 0)
@@ -47,101 +46,79 @@ void drawSegments(
     }
 }
 
-cv::Mat drawCube(cv::Mat im, const std::vector<cv::Point2f> &lowerFace,
-                 const std::vector<cv::Point2f> &upperFace, cv::Scalar color, int lw)
+cv::Mat draw_cube(cv::Mat im, const std::vector<cv::Point2f> &lower_face,
+                  const std::vector<cv::Point2f> &upper_face, cv::Scalar color, int lw)
 {
     logger->info("{}", __func__);
-    if (lowerFace.empty() || upperFace.empty())
+    if (lower_face.empty() || upper_face.empty())
     {
         return im;
     }
-
     for (int i = 0; i < 4; ++i)
     {
-        cv::line(im, lowerFace[i], lowerFace[(i + 1) % 4], color, lw);
-        cv::line(im, upperFace[i], upperFace[(i + 1) % 4], color, lw);
-        cv::line(im, lowerFace[i], upperFace[i], color, lw);
+        cv::line(im, lower_face[i], lower_face[(i + 1) % 4], color, lw);
+        cv::line(im, upper_face[i], upper_face[(i + 1) % 4], color, lw);
+        cv::line(im, lower_face[i], upper_face[i], color, lw);
     }
-
     return im;
 }
 
-cv::Mat plotBestSegmentsSimple(
+cv::Mat plot_best_segments_simple(
     cv::Mat frame,
     cv::Mat bev,
     Forest &forest,
-    double minScore
+    double min_score
 )
 {
     logger->info("{}", __func__);
     static int count = 0;
     count++;
-
     int width = frame.cols;
     int height = frame.rows;
-
     cv::Mat seg = frame.clone();
-    cv::Mat frameCopy = frame.clone();
-    cv::Mat frameOrig = frame.clone();
-    cv::Mat bevCopy = bev.clone();
-
-    //cv::Mat lf = (cv::Mat_<uint16_t>(4, 2) << 215, 265, 90, 121, 294, 120, 625, 265);
-    //cv::Mat uf = (cv::Mat_<uint16_t>(4, 2) << 215, 185, 90, 85, 294, 85, 625, 185);
-    //drawCube(frame, solution.lower_face, solution.upper_face, color, 1);
-    
-    //std::vector<cv::Point2f> lf = {{215, 265}, {90, 121}, {294, 120}, {625, 265}};
-    //std::vector<cv::Point2f> uf = {{215, 185}, {90, 85}, {294, 85}, {625, 185}};
-
-    //drawCube(frame, lf, uf, cv::Vec3b(255, 0, 0), 3);
-    //std::string outputFilePath = "output_frames/frame_" + std::to_string(count) + ".jpg";
-
-    std::vector<SegmentData> bestSegments = forest.GetBestSegments();
-    logger->info("Segmens Number: {}", bestSegments.size());
-
-    for (const SegmentData &segmentData : bestSegments)
+    cv::Mat frame_copy = frame.clone();
+    cv::Mat frame_orig = frame.clone();
+    cv::Mat bev_copy = bev.clone();
+    std::vector<SegmentData> best_segments = forest.get_best_segments();
+    logger->info("Segmens Number: {}", best_segments.size());
+    for (const SegmentData &segment_data : best_segments)
     {
-        const std::set<int> & segment = segmentData.seg;
-        double score = segmentData.score;
+        const std::set<int> &segment = segment_data.seg;
+        double score = segment_data.score;
         logger->info("Segment Score: {}", score);
-        Solution solution = segmentData.sol;
-        double move = segmentData.move;
-
-        if (score > minScore)
+        Solution solution = segment_data.sol;
+        double move = segment_data.move;
+        if (score > min_score)
         {
             cv::Vec3b color;
-
             if (solution.cls == 0)
             {
-                color = cv::Vec3b(0, 255, 255); // Yellow
+                color = cv::Vec3b(0, 255, 255);  // Yellow
             }
             else if (solution.cls == 1)
             {
-                color = cv::Vec3b(0, 255, 0); // Green
+                color = cv::Vec3b(0, 255, 0);  // Green
             }
             else if (solution.cls == 2)
             {
-                color = cv::Vec3b(0, 255, 255); // Mint
+                color = cv::Vec3b(0, 255, 255);  // Mint
             }
-
             for (int node_id : segment)
             {
                 int x = node_id % width;
                 int y = node_id / width;
                 seg.at<cv::Vec3b>(y, x) = color;
             }
-
-            color = cv::Vec3b(255, 0, 0); // Blue
-            drawCube(frame, solution.lower_face, solution.upper_face, color, 1);
-            drawCube(seg, solution.lower_face, solution.upper_face, color, 1);
+            color = cv::Vec3b(255, 0, 0);  // Blue
+            draw_cube(frame, solution.lower_face, solution.upper_face, color, 1);
+            draw_cube(seg, solution.lower_face, solution.upper_face, color, 1);
         }
         else
         {
-            logger->warn("Low Segment Score: {} < {}", score, minScore);
+            logger->warn("Low Segment Score: {} < {}", score, min_score);
         }
     }
-
     double opacity = 2.0 / 5.0;
     cv::addWeighted(frame, 1.0 - opacity, seg, opacity, 0, frame);
-
     return frame;
 }
