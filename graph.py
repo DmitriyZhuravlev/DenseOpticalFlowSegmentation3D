@@ -16,7 +16,7 @@ class Node:
 class Forest:
     def __init__(self, num_nodes, img = None, width = None):
         if img is not None:
-            self.nodes = [Node(i, img[i % width][ i // width ], [i % width,  i // width, i % width,  i // width] ) for i in range(num_nodes)]
+            self.nodes = [Node(i, img[i % width][ i // width ], [i % width ,  i // width, i % width + 1,  i // width +1 ] ) for i in range(num_nodes)]
         else:
              self.nodes = [Node(i) for i in range(num_nodes)]
         self.num_sets = num_nodes
@@ -46,12 +46,12 @@ class Forest:
             self.nodes[b].parent = a
             self.nodes[a].color = (self.nodes[a].size * self.nodes[a].color + self.nodes[b].size * self.nodes[b].color)/(self.nodes[b].size + self.nodes[a].size)
             self.nodes[a].size = self.nodes[a].size + self.nodes[b].size
-            self.nodes[a].box = [min(self.nodes[b].box[0], self.nodes[a].box[0]), min(self.nodes[b].box[1], self.nodes[a].box[1]), max(self.nodes[b].box[0], self.nodes[a].box[0]), max(self.nodes[b].box[1], self.nodes[a].box[1])]
+            self.nodes[a].box = [min(self.nodes[b].box[0], self.nodes[a].box[0]), min(self.nodes[b].box[1], self.nodes[a].box[1]), max(self.nodes[b].box[2], self.nodes[a].box[2]), max(self.nodes[b].box[3], self.nodes[a].box[3])]
         else:
             self.nodes[a].parent = b
             self.nodes[b].color = (self.nodes[a].size * self.nodes[a].color + self.nodes[b].size * self.nodes[b].color)/(self.nodes[b].size + self.nodes[a].size)
             self.nodes[b].size = self.nodes[b].size + self.nodes[a].size
-            self.nodes[b].box = [min(self.nodes[b].box[0], self.nodes[a].box[0]), min(self.nodes[b].box[1], self.nodes[a].box[1]), max(self.nodes[b].box[0], self.nodes[a].box[0]), max(self.nodes[b].box[1], self.nodes[a].box[1])]
+            self.nodes[b].box = [min(self.nodes[b].box[0], self.nodes[a].box[0]), min(self.nodes[b].box[1], self.nodes[a].box[1]), max(self.nodes[b].box[2], self.nodes[a].box[2]), max(self.nodes[b].box[3], self.nodes[a].box[3])]
 
             if self.nodes[a].rank == self.nodes[b].rank:
                 self.nodes[b].rank = self.nodes[b].rank + 1
@@ -61,6 +61,14 @@ class Forest:
     def print_nodes(self):
         for node in self.nodes:
             print(node)
+            
+    def get_components(self):
+        components = set()
+        for n in range(len(self.nodes)):
+            if self.nodes[n].parent == n:
+                components.add(n)
+        
+        return components
 
 def create_edge(img, width, x, y, x1, y1, diff):
     vertex_id = lambda x, y: y * width + x

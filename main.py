@@ -413,19 +413,29 @@ def get_segmented_video(sigma, neighbor, K, min_comp_size, input_file, output_fi
             color = (0, 0, 255)  # Red color
             cv2.circle(segmented_frame, tuple(map(int, next_point)), 3, color, -1)  # Draw circle on image 2
 
-        cv2.imshow('Segmented', segmented_frame)
+ 
         
-        # for y in range(size[0]):
-            # for x in range(size[1]):
-            # comp = forest.find(y * width + x)
-        # edgelets1 = compute_edgelets(good_old.reshape(-1, 2), good_new.reshape(-1, 2), boxes[ind], boxes[ind+1])
-        # # Visualize the edgelets
-        # vis_edgelets(images[ind+1], edgelets1)
-        # vp1 = ransac_vanishing_point(edgelets1, images[0].shape[0],  2000, threshold_inlier=5)
-        # print("vp :", vp1)
-        # vis_model(images[ind+1], edgelets1, vp1, output_path = f"vis_model_{ind+1}.png")
-        # vp = vp1 / vp1[2]
-        # print(f"vp ({ind+1}) : {vp}")
+        components = forest.get_components()
+        #print("components :", components)
+        
+        for cmp in components:
+            box = forest.nodes[cmp].box
+            
+            box_swapped = [box[1], box[0], box[3], box[2]]
+            #cv2.rectangle(segmented_frame, box_swapped[:2], box_swapped[2:], (0, 255, 255), 1)
+            
+
+            edgelets1 = compute_edgelets(good_old.reshape(-1, 2), good_new.reshape(-1, 2), box_swapped, box_swapped)
+            if edgelets1[1].shape[0] > 0:
+                # Visualize the edgelets
+                vis_edgelets(segmented_frame, edgelets1)
+                vp1 = ransac_vanishing_point(edgelets1, segmented_frame.shape[0],  2000, threshold_inlier=5)
+                print("vp :", vp1)
+                vis_model(segmented_frame, edgelets1, vp1, output_path = f"vis_model_{ind+1}.png")
+                vp = vp1 / vp1[2]
+                print(f"vp ({ind+1}) : {vp}")
+            
+        cv2.imshow('Segmented', segmented_frame)
 
         # logger.info("Creating graph for optical flow image...")
         # flow_graph_edges = build_graph(flow_smooth, size[1], size[0], diff, neighbor == 8)
