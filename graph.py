@@ -2,11 +2,12 @@ import numpy as np
 
 
 class Node:
-    def __init__(self, parent, color=(0, 0, 0), rank=0, size=1):
+    def __init__(self, parent, color=(0, 0, 0), box = [0, 0, 0, 0], rank=0, size=1):
         self.parent = parent
         self.rank = rank
         self.size = size
         self.color = np.array(color, dtype=np.float32)
+        self.box = box
 
 
     def __repr__(self):
@@ -15,7 +16,7 @@ class Node:
 class Forest:
     def __init__(self, num_nodes, img = None, width = None):
         if img is not None:
-            self.nodes = [Node(i, img[i % width][ i // width ] ) for i in range(num_nodes)]
+            self.nodes = [Node(i, img[i % width][ i // width ], [i % width,  i // width, i % width,  i // width] ) for i in range(num_nodes)]
         else:
              self.nodes = [Node(i) for i in range(num_nodes)]
         self.num_sets = num_nodes
@@ -45,10 +46,12 @@ class Forest:
             self.nodes[b].parent = a
             self.nodes[a].color = (self.nodes[a].size * self.nodes[a].color + self.nodes[b].size * self.nodes[b].color)/(self.nodes[b].size + self.nodes[a].size)
             self.nodes[a].size = self.nodes[a].size + self.nodes[b].size
+            self.nodes[a].box = [min(self.nodes[b].box[0], self.nodes[a].box[0]), min(self.nodes[b].box[1], self.nodes[a].box[1]), max(self.nodes[b].box[0], self.nodes[a].box[0]), max(self.nodes[b].box[1], self.nodes[a].box[1])]
         else:
             self.nodes[a].parent = b
             self.nodes[b].color = (self.nodes[a].size * self.nodes[a].color + self.nodes[b].size * self.nodes[b].color)/(self.nodes[b].size + self.nodes[a].size)
             self.nodes[b].size = self.nodes[b].size + self.nodes[a].size
+            self.nodes[b].box = [min(self.nodes[b].box[0], self.nodes[a].box[0]), min(self.nodes[b].box[1], self.nodes[a].box[1]), max(self.nodes[b].box[0], self.nodes[a].box[0]), max(self.nodes[b].box[1], self.nodes[a].box[1])]
 
             if self.nodes[a].rank == self.nodes[b].rank:
                 self.nodes[b].rank = self.nodes[b].rank + 1

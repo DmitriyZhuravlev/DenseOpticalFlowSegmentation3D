@@ -9,6 +9,42 @@
 
 extern std::shared_ptr<spdlog::logger> logger;
 
+cv::Mat generate_image(const Forest &forest, int width, int height)
+{
+    // Define a lambda function for generating random colors
+    auto random_color = []()
+    {
+        return cv::Scalar(rand() % 256, rand() % 256, rand() % 256);
+    };
+
+    // Seed the random number generator
+    std::srand(static_cast<unsigned>(std::time(nullptr)));
+
+    // Create a vector to store random colors
+    std::vector<cv::Scalar> colors(width * height);
+
+    for (int i = 0; i < width * height; ++i)
+    {
+        colors[i] = random_color();
+    }
+
+    // Create an empty black image with the specified width and height
+    cv::Mat img(height, width, CV_8UC3, cv::Scalar(0, 0, 0));
+
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            int comp = forest.find(y * width + x);
+                img.at<cv::Vec3b>(y, x) = cv::Vec3b(colors[comp][0], colors[comp][1], colors[comp][2]);
+
+
+        }
+    }
+
+    return img;
+}
+
 void draw_image(const std::string &title, const cv::Mat &image)
 {
     cv::namedWindow(title, cv::WINDOW_NORMAL);

@@ -89,6 +89,9 @@ int main() {
     // Load the consecutive images and convert them to grayscale
     cv::Mat im1 = cv::imread("/home/dzhura/ComputerVision/3dim-optical-flow/img/frame_1052.png");
     cv::Mat im2 = cv::imread("/home/dzhura/ComputerVision/3dim-optical-flow/img/frame_1053.png");
+    
+        // Display the image in a window
+    cv::imshow("Original Image", im2);
 
     cv::Mat gray1, gray2;
     cv::cvtColor(im1, gray1, cv::COLOR_BGR2GRAY);
@@ -145,8 +148,16 @@ int main() {
     //cv::Mat bev_out;
     //cv::addWeighted(bev, 0.5, background_bev, 0.5, 0.5, bev_out);
 
-    // Create a forest object and get segmented array
+    // Measure the time for creating the Forest object and getting the segmented array
+    auto start_time = std::chrono::high_resolution_clock::now();
+
     Forest forest = get_segmented_array(flow, bev, persp_mat, inv_mat, inv_mat_upper, 8);
+
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+
+    // Print the elapsed time
+    std::cout << "Elapsed time for creating the Forest: " << elapsed_time << " milliseconds" << std::endl;
 
     // Get the best segments from the forest
     //std::vector<SegmentData> best_segments = forest.GetBestSegments();

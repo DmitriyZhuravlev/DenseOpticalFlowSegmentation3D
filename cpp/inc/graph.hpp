@@ -80,6 +80,7 @@ public:
     cv::Matx33f inv_mat;
     std::vector<cv::Matx33f> inv_mat_upper;
 
+    Forest(const Forest &other);
     Forest(const cv::Mat &flow, const cv::Mat &bev, const cv::Matx33f &persp_mat,
         const cv::Matx33f &inv_mat,
         const std::vector<cv::Matx33f> &inv_mat_upper, int min_move = 5);
@@ -100,6 +101,7 @@ public:
     std::vector<std::set<int>> get_segments();
 
     std::vector<cv::Point2i> get_bounding_box(int node_id) const;
+
 
 private:
     std::vector<Node> nodes;
